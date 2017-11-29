@@ -48,8 +48,16 @@ func produce(wg *sync.WaitGroup) chan Task {
 	go func() {
 		defer wg.Done()
 		for {
-			time.Sleep(time.Second * 1)
-			out <- Task(rand.Int63())
+			log.Println(blue("=> Sleeping..."))
+			time.Sleep(time.Second)
+			task := Task(rand.Int63())
+			log.Printf(blue("=> Sending %v"), task)
+			select {
+			case out <- task:
+				log.Println(blue("=> OK"))
+			case <-time.After(time.Second * 5):
+				log.Println(red("=> Timeout in client"))
+			}
 
 		}
 
@@ -68,8 +76,6 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Bat
 		for {
 			select {
 			case <-ticker:
-				// TODO: Consider adding a timeout here to be able to use strategy
-				// vs timeout in producer.
 				batchCh <- batch
 				batch = NewBatch()
 			case task := <-taskCh:
@@ -112,6 +118,7 @@ func consume(batchCh chan Batch, wg *sync.WaitGroup) {
 }
 
 func write(batch Batch) error {
+	time.Sleep(time.Second * 10)
 	log.Println(batch)
 	return nil
 }

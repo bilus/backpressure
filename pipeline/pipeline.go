@@ -2,10 +2,20 @@ package pipeline
 
 import (
 	// "golang.org/x/net/context"
+	"github.com/fatih/color"
 	"log"
 	"math/rand"
 	"sync"
 	"time"
+)
+
+var (
+	blue    = color.New(color.FgBlue).SprintFunc()
+	yellow  = color.New(color.FgYellow).SprintFunc()
+	red     = color.New(color.FgRed).SprintFunc()
+	magenta = color.New(color.FgMagenta).SprintFunc()
+	green   = color.New(color.FgGreen).SprintFunc()
+	cyan    = color.New(color.FgCyan).SprintFunc()
 )
 
 // Use WorkGroup.
@@ -79,6 +89,7 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Bat
 				batchCh <- batch
 				batch = NewBatch()
 			case task := <-taskCh:
+				// Handle termination, flush current batch.
 				var err error
 				batch, err = batch.AddTask(task)
 				if err != nil {
@@ -86,7 +97,7 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Bat
 					// TODO: Discuss whether round-robin isn't a better choice
 					// Probably should use a Strategy here to make that
 					// configurable.
-					log.Printf("Dropping task: %v", err)
+					log.Printf(red("Dropping task: %v"), err)
 				}
 			}
 
@@ -102,7 +113,7 @@ func consume(batchCh chan Batch, wg *sync.WaitGroup) {
 		for {
 			batch, ok := <-batchCh
 			if !ok {
-				log.Printf("Consumer is exiting")
+				log.Printf(green("Consumer is exiting"))
 				return
 			}
 
@@ -111,14 +122,15 @@ func consume(batchCh chan Batch, wg *sync.WaitGroup) {
 			// backCh <- NewBatch()
 			// Assumes writes are idempotent.
 			if err != nil {
-				log.Printf("Write error: %v (will retry)", err)
+				log.Printf(red("Write error: %v (will retry)"), err)
 			}
 		}
 	}()
 }
 
 func write(batch Batch) error {
+	log.Println(yellow("<= Writing..."))
 	time.Sleep(time.Second * 10)
-	log.Println(batch)
+	log.Printf(yellow("<= %v"), batch)
 	return nil
 }

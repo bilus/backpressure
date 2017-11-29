@@ -1,7 +1,7 @@
 package main
 
 import (
-	"./pipeline"
+	"github.com/nowthisnews/dp-pubsub-archai/pipeline"
 	"time"
 )
 

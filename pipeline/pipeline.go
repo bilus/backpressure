@@ -23,16 +23,40 @@ func Run(tick time.Duration) {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	taskCh := produce(&wg)
-	batchCh := dispatch(tick, taskCh, &wg)
-	consume(batchCh, &wg)
-	wg.Wait()
+	batchCh, tokenCh := dispatch(tick, taskCh, &wg)
+	consume(batchCh, tokenCh, &wg)
+
+	// Just to stop when tracing.
+	barrierCh := make(chan struct{})
+	go func() {
+		wg.Wait()
+		barrierCh <- struct{}{}
+	}()
+	select {
+	case <-barrierCh:
+		log.Println(green("Pipeline completed"))
+	case <-time.After(time.Second * 30):
+		log.Println(red("Timeout waiting for finish"))
+	}
 }
 
 type Task int64
 type Batch []Task
 
+// ASK: There are many ways we could improve that. Ideas:
+//   - Extend it to provide hints about max batch size.
+//   - Use real token bucket algorithm to control the rate.
+//   - Pipe token channel directly to producer to throttle it (but then we may need to
+//     use something close to adaptive token buffer); that would give better control
+//     over how much data to pull from pub/sub and when.
+type Token struct{}
+
 func NewBatch() Batch {
 	return make(Batch, 0)
+}
+
+func NewToken() Token {
+	return Token{}
 }
 
 func (batch Batch) AddTask(task Task) (Batch, error) {
@@ -42,15 +66,16 @@ func (batch Batch) AddTask(task Task) (Batch, error) {
 	return newBatch, nil
 }
 
-// DISCUSSION
+// ASK:
 // How much producer cares about whether data was actually written or not?
 //   - Very much. 200 or 201 -> data was written (have to wait for write to finish).
 //     Use 'completion ports' using chans = request & response.
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
 // TODO:
-// - Backpressure
+// - Measure idle consumer time
 // - Cleanly handle TERM
+// - Retries
 
 func produce(wg *sync.WaitGroup) chan Task {
 	out := make(chan Task)
@@ -76,8 +101,9 @@ func produce(wg *sync.WaitGroup) chan Task {
 	return out
 }
 
-func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Batch {
+func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Batch, chan Token) {
 	batchCh := make(chan Batch)
+	tokenCh := make(chan Token, 1)
 
 	go func() {
 		defer wg.Done()
@@ -87,6 +113,7 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Bat
 			select {
 			case <-ticker:
 				batchCh <- batch
+				<-tokenCh
 				batch = NewBatch()
 			case task := <-taskCh:
 				// Handle termination, flush current batch.
@@ -94,7 +121,7 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Bat
 				batch, err = batch.AddTask(task)
 				if err != nil {
 					// Unable to buffer more tasks, drop the current one to the floor.
-					// TODO: Discuss whether round-robin isn't a better choice
+					// ASK: Maybe round-robin is a better choice?
 					// Probably should use a Strategy here to make that
 					// configurable.
 					log.Printf(red("Dropping task: %v"), err)
@@ -104,10 +131,11 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) chan Bat
 		}
 	}()
 
-	return batchCh
+	return batchCh, tokenCh
 }
 
-func consume(batchCh chan Batch, wg *sync.WaitGroup) {
+// TODO: Measure idle time.
+func consume(batchCh chan Batch, tokenCh chan Token, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		for {
@@ -119,7 +147,7 @@ func consume(batchCh chan Batch, wg *sync.WaitGroup) {
 
 			// TODO: Retries.
 			err := write(batch)
-			// backCh <- NewBatch()
+			tokenCh <- NewToken()
 			// Assumes writes are idempotent.
 			if err != nil {
 				log.Printf(red("Write error: %v (will retry)"), err)

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"github.com/fatih/color"
 	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"golang.org/x/net/context"
@@ -30,19 +31,29 @@ type FakeTaskProducer struct {
 	maxSleep int
 }
 
-func (ftp FakeTaskProducer) ProduceTask() *Task {
+func (ftp FakeTaskProducer) ProduceTask() Task {
 	time.Sleep(time.Millisecond * time.Duration(rand.Intn(ftp.maxSleep)))
-	return &Task{rand.Int63()}
+	return &FakeTask{rand.Int63()}
 }
 
 type FakeBatchConsumer struct {
 	maxSleep int
 }
 
+type FakeTask struct {
+	val int64
+}
+
+func (FakeTask) TaskTypeTag() {}
+
 func (fbc FakeBatchConsumer) ConsumeBatch(batch Batch) error {
 	log.Println(yellow("<= Writing..."))
 	time.Sleep(time.Millisecond * time.Duration(rand.Intn(fbc.maxSleep)))
-	log.Printf(yellow("<= %v"), batch)
+	taskBatch := make([]string, len(batch))
+	for i, task := range batch {
+		taskBatch[i] = fmt.Sprintf("%v", *task.(*FakeTask))
+	}
+	log.Printf(yellow("<= %v"), taskBatch)
 	return nil
 }
 
@@ -58,8 +69,8 @@ func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *Metrics {
 	return &pipelineMetrics
 }
 
-type Task struct {
-	val int64
+type Task interface {
+	TaskTypeTag()
 }
 type Batch []Task
 

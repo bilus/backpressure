@@ -15,7 +15,7 @@ import (
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
 type TaskProducer interface {
-	ProduceTask() *Task
+	ProduceTask() Task
 }
 
 func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
@@ -43,7 +43,7 @@ func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, m
 					case <-ctx.Done():
 						metrics.EndWithFailure(1)
 						return
-					case taskCh <- *task:
+					case taskCh <- task:
 						metrics.EndWithSuccess(1)
 						remaining -= 1
 						log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)

@@ -49,6 +49,7 @@ type Batch []Task
 //   - Pipe token channel directly to producer to throttle it (but then we may need to
 //     use something close to adaptive token buffer); that would give better control
 //     over how much data to pull from pub/sub and when.
+//   - Interesting: http://bytopia.org/2016/09/14/implementing-leaky-channels/
 type Token struct{}
 
 func NewBatch() Batch {
@@ -76,6 +77,8 @@ func (batch Batch) AddTask(task Task) (Batch, error) {
 // - Measure idle consumer time
 // - Cleanly handle TERM
 // - Retries
+// - Batching tokens/permits
+// - Some simple recovery of lost token(s) to prevent deadlocks.
 
 func produce(wg *sync.WaitGroup) chan Task {
 	out := make(chan Task)

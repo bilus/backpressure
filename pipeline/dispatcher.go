@@ -9,6 +9,9 @@ import (
 )
 
 func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+	if highWaterMark == lowWaterMark {
+		panic("Dispatch highWaterMark must be higher than lowWaterMark")
+	}
 	batchCh := make(chan Batch)
 	permitCh := make(chan Permit, 1)
 	go func() {
@@ -17,6 +20,7 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 		initialPermit := NewPermit(highWaterMark)
 		log.Printf(magenta("Sending permit: %v"), initialPermit)
 		taskPermitChan <- initialPermit
+		waterLevel := initialPermit.SizeHint
 		ticker := time.Tick(tick)
 		batch := NewBatch()
 		for {
@@ -35,17 +39,20 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 					log.Printf(red("Dropping task: %v"), err)
 				} else {
 					metrics.EndWithSuccess(1)
-					if len(batch) == lowWaterMark {
-						newPermit := NewPermit(highWaterMark - len(batch))
-						log.Printf(magenta("Sending permit: %v"), newPermit)
-						taskPermitChan <- newPermit
-					}
+				}
+				waterLevel -= 1
+				if waterLevel <= lowWaterMark {
+					newPermit := NewPermit(highWaterMark - waterLevel)
+					log.Printf(magenta("Sending permit: %v"), newPermit)
+					taskPermitChan <- newPermit
+					waterLevel = highWaterMark
 				}
 			case <-ticker:
-				batchCh <- batch
-				taskPermitChan <- NewPermit(highWaterMark)
-				<-permitCh
-				batch = NewBatch()
+				if len(batch) > 0 {
+					batchCh <- batch
+					<-permitCh
+					batch = NewBatch()
+				}
 			case <-ctx.Done():
 				return
 			}

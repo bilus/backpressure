@@ -1,11 +1,11 @@
 package pipeline
 
 import (
-	// "golang.org/x/net/context"
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"github.com/olekukonko/tablewriter"
+	"golang.org/x/net/context"
 	"log"
 	"math/rand"
 	"os"
@@ -22,20 +22,24 @@ var (
 	cyan    = color.New(color.FgCyan).SprintFunc()
 )
 
-func Run(tick time.Duration, wg *sync.WaitGroup) {
+func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) {
 	wg.Add(3)
 	producerMetrics := metrics.New()
-	taskCh, taskPermitCh := produce(&producerMetrics, wg)
+	taskCh, taskPermitCh := produce(ctx, &producerMetrics, wg)
 	dispatcherMetrics := metrics.New()
-	batchCh, batchPermitCh := dispatch(tick, taskCh, taskPermitCh, &dispatcherMetrics, wg)
+	batchCh, batchPermitCh := dispatch(ctx, tick, taskCh, taskPermitCh, &dispatcherMetrics, wg)
 	consumerMetrics := metrics.New()
-	consume(batchCh, batchPermitCh, &consumerMetrics, wg)
+	consume(ctx, batchCh, batchPermitCh, &consumerMetrics, wg)
 
 	go func() {
 		defer wg.Done()
 		for {
-			time.Sleep(time.Second * 5)
-			ReportMetrics(producerMetrics, dispatcherMetrics, consumerMetrics)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second * 5):
+				ReportMetrics(producerMetrics, dispatcherMetrics, consumerMetrics)
+			}
 		}
 	}()
 }
@@ -101,30 +105,38 @@ func report(header []string, data [][]string) {
 // - Batching permits
 // - Some simple recovery of lost permits(s) to prevent deadlocks.
 
-func produce(metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
+func produce(ctx context.Context, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
 	out := make(chan Task)
 	permitCh := make(chan Permit, 1)
 
 	go func() {
 		defer wg.Done()
 		for {
-			log.Printf(blue("Obtaining permit..."))
-			permit := <-permitCh
-			log.Printf(blue("Got permit: %v"), permit)
-			remaining := permit.SizeHint
-			for remaining > 0 {
-				time.Sleep(time.Second)
-				task := Task(rand.Int63())
-				metrics.Begin(1)
-				log.Printf(blue("=> Sending %v"), task)
-				select {
-				case out <- task:
-					metrics.EndWithSuccess(1)
-					remaining -= 1
-					log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
-				case <-time.After(time.Second * 5):
-					metrics.EndWithFailure(1)
-					log.Println(red("=> Timeout in client"))
+			select {
+			case <-ctx.Done():
+				return
+
+			default:
+				log.Printf(blue("Obtaining permit..."))
+				permit := <-permitCh
+				log.Printf(blue("Got permit: %v"), permit)
+				remaining := permit.SizeHint
+				for remaining > 0 {
+					time.Sleep(time.Second)
+					task := Task(rand.Int63())
+					metrics.Begin(1)
+					log.Printf(blue("=> Sending %v"), task)
+					select {
+					case <-ctx.Done():
+						return
+					case out <- task:
+						metrics.EndWithSuccess(1)
+						remaining -= 1
+						log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
+					case <-time.After(time.Second * 5):
+						metrics.EndWithFailure(1)
+						log.Println(red("=> Timeout in client"))
+					}
 				}
 			}
 		}
@@ -133,7 +145,7 @@ func produce(metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Perm
 	return out, permitCh
 }
 
-func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+func dispatch(ctx context.Context, tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	batchCh := make(chan Batch)
 	permitCh := make(chan Permit, 1)
 
@@ -149,10 +161,6 @@ func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, 
 		batch := NewBatch()
 		for {
 			select {
-			case <-ticker:
-				batchCh <- batch
-				<-permitCh
-				batch = NewBatch()
 			case task := <-taskCh:
 				metrics.Begin(1)
 				// Handle termination, flush current batch.
@@ -173,6 +181,12 @@ func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, 
 						taskPermitChan <- newPermit
 					}
 				}
+			case <-ticker:
+				batchCh <- batch
+				<-permitCh
+				batch = NewBatch()
+			case <-ctx.Done():
+				return
 			}
 
 		}
@@ -181,30 +195,35 @@ func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, 
 	return batchCh, permitCh
 }
 
-// TODO: Measure idle time.
-func consume(batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
+func consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		for {
-			batch, ok := <-batchCh
-			batchSize := uint64(len(batch))
-			metrics.Begin(batchSize)
-			if !ok {
-				log.Printf(green("Consumer is exiting"))
-				metrics.EndWithFailure(batchSize) // TODO: Flush what's in batch!
+			select {
+
+			case <-ctx.Done():
 				return
-			}
+			default:
+				batch, ok := <-batchCh
+				batchSize := uint64(len(batch))
+				metrics.Begin(batchSize)
+				if !ok {
+					log.Printf(green("Consumer is exiting"))
+					metrics.EndWithFailure(batchSize) // TODO: Flush what's in batch!
+					return
+				}
 
-			// TODO: Retries.
-			err := write(batch)
-			permitCh <- NewPermit(1)
-			// Assumes writes are idempotent.
-			if err != nil {
-				log.Printf(red("Write error: %v (will retry)"), err)
-				metrics.EndWithFailure(batchSize)
-			} else {
-				metrics.EndWithSuccess(batchSize)
+				// TODO: Retries.
+				err := write(batch)
+				permitCh <- NewPermit(1)
+				// Assumes writes are idempotent.
+				if err != nil {
+					log.Printf(red("Write error: %v (will retry)"), err)
+					metrics.EndWithFailure(batchSize)
+				} else {
+					metrics.EndWithSuccess(batchSize)
 
+				}
 			}
 		}
 	}()

@@ -64,14 +64,6 @@ func (batch Batch) AddTask(task Task) (Batch, error) {
 //     Use 'completion ports' using chans = request & response.
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
-// TODO:
-// - Measure idle consumer time
-// - Wait to stop pipeline
-// - Cleanly handle TERM
-// - Retries
-// - Batching permits
-// - Some simple recovery of lost permits(s) to prevent deadlocks.
-
 func produce(ctx context.Context, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
 	out := make(chan Task)
 	permitCh := make(chan Permit, 1)
@@ -167,7 +159,6 @@ func consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 		defer wg.Done()
 		for {
 			select {
-
 			case <-ctx.Done():
 				return
 			default:
@@ -181,6 +172,7 @@ func consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 				}
 
 				// TODO: Retries.
+				// ASK: This is Archai so maybe we should keep trying for n minutes and then just crash the service?
 				err := write(batch)
 				permitCh <- NewPermit(1)
 				// Assumes writes are idempotent.

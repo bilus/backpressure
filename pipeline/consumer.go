@@ -4,6 +4,7 @@ import (
 	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"golang.org/x/net/context"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -48,7 +49,7 @@ func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 
 func write(batch Batch) error {
 	log.Println(yellow("<= Writing..."))
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
 	log.Printf(yellow("<= %v"), batch)
 	return nil
 }

@@ -33,7 +33,7 @@ func Produce(ctx context.Context, taskChanSize int, metrics *metrics.Metrics, wg
 				log.Printf(blue("Got permit: %v"), permit)
 				remaining := permit.SizeHint
 				for remaining > 0 {
-					// time.Sleep(time.Second)
+					time.Sleep(time.Millisecond * time.Duration(rand.Intn(500)))
 					task := Task(rand.Int63())
 					metrics.Begin(1)
 					log.Printf(blue("=> Sending %v"), task)

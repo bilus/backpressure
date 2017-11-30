@@ -4,12 +4,12 @@ import (
 	// "golang.org/x/net/context"
 	"fmt"
 	"github.com/fatih/color"
+	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"github.com/olekukonko/tablewriter"
 	"log"
 	"math/rand"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -24,11 +24,11 @@ var (
 
 func Run(tick time.Duration, wg *sync.WaitGroup) {
 	wg.Add(3)
-	producerMetrics := NewMetrics()
+	producerMetrics := metrics.New()
 	taskCh, taskPermitCh := produce(&producerMetrics, wg)
-	dispatcherMetrics := NewMetrics()
+	dispatcherMetrics := metrics.New()
 	batchCh, batchPermitCh := dispatch(tick, taskCh, taskPermitCh, &dispatcherMetrics, wg)
-	consumerMetrics := NewMetrics()
+	consumerMetrics := metrics.New()
 	consume(batchCh, batchPermitCh, &consumerMetrics, wg)
 
 	go func() {
@@ -68,29 +68,7 @@ func (batch Batch) AddTask(task Task) (Batch, error) {
 	return newBatch, nil
 }
 
-type Metrics struct {
-	Iterations uint64
-	Successes  uint64
-	Failures   uint64
-}
-
-func NewMetrics() Metrics {
-	return Metrics{0, 0, 0}
-}
-
-func (metric *Metrics) Begin(delta uint64) {
-	atomic.AddUint64(&metric.Iterations, delta)
-}
-
-func (metric *Metrics) EndWithSuccess(delta uint64) {
-	atomic.AddUint64(&metric.Successes, delta)
-}
-
-func (metric *Metrics) EndWithFailure(delta uint64) {
-	atomic.AddUint64(&metric.Failures, delta)
-}
-
-func ReportMetrics(producerMetrics, dispatcherMetrics, consumerMetrics Metrics) {
+func ReportMetrics(producerMetrics, dispatcherMetrics, consumerMetrics metrics.Metrics) {
 	report([]string{"source", "iterations", "successes", "failures"},
 		[][]string{
 			[]string{"producer", fmt.Sprintf("%v", producerMetrics.Iterations), fmt.Sprintf("%v", producerMetrics.Successes), fmt.Sprintf("%v", producerMetrics.Failures)},
@@ -117,12 +95,13 @@ func report(header []string, data [][]string) {
 
 // TODO:
 // - Measure idle consumer time
+// - Wait to stop pipeline
 // - Cleanly handle TERM
 // - Retries
 // - Batching permits
 // - Some simple recovery of lost permits(s) to prevent deadlocks.
 
-func produce(metrics *Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
+func produce(metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
 	out := make(chan Task)
 	permitCh := make(chan Permit, 1)
 
@@ -154,7 +133,7 @@ func produce(metrics *Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
 	return out, permitCh
 }
 
-func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, metrics *Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	batchCh := make(chan Batch)
 	permitCh := make(chan Permit, 1)
 
@@ -203,7 +182,7 @@ func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, 
 }
 
 // TODO: Measure idle time.
-func consume(batchCh chan Batch, permitCh chan Permit, metrics *Metrics, wg *sync.WaitGroup) {
+func consume(batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		for {

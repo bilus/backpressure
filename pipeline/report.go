@@ -12,10 +12,12 @@ import (
 
 func ReportPeriodically(ctx context.Context, tick time.Duration, producerMetrics, dispatcherMetrics, consumerMetrics *metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
+				ReportMetrics(*producerMetrics, *dispatcherMetrics, *consumerMetrics)
 				return
 			case <-time.After(time.Second * 5):
 				ReportMetrics(*producerMetrics, *dispatcherMetrics, *consumerMetrics)

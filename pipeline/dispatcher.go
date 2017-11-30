@@ -16,6 +16,7 @@ func Dispatch(ctx context.Context, tick time.Duration, taskCh chan Task, taskPer
 	lowWaterMark := 2
 
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
 		initialPermit := NewPermit(batchSize)
 		log.Printf(magenta("Sending permit: %v"), initialPermit)

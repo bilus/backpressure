@@ -10,6 +10,7 @@ import (
 
 func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
 		for {
 			select {
@@ -26,7 +27,10 @@ func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 				}
 
 				// TODO: Retries.
-				// ASK: This is Archai so maybe we should keep trying for n minutes and then just crash the service?
+				// ASK: This is Archai so maybe we should keep trying forever until it gets it shit together.
+				// ASK: How to make that shit idempotent:
+				// - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
+				// - have Archai by adding an operation id to each operation and a way to query Archai for its status
 				err := write(batch)
 				permitCh <- NewPermit(1)
 				// Assumes writes are idempotent.

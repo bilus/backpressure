@@ -20,6 +20,7 @@ func Produce(ctx context.Context, metrics *metrics.Metrics, wg *sync.WaitGroup) 
 	permitCh := make(chan Permit, 1)
 
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
 		for {
 			select {

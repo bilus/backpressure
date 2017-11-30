@@ -19,7 +19,6 @@ var (
 )
 
 func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) {
-	wg.Add(3)
 	producerMetrics := metrics.New()
 	taskCh, taskPermitCh := Produce(ctx, &producerMetrics, wg)
 	dispatcherMetrics := metrics.New()
@@ -33,7 +32,7 @@ type Task int64
 type Batch []Task
 
 // ASK: There are many ways we could improve that. Ideas:
-//   - Extend it to provide hints about max batch size.
+//   + Extend it to provide hints about max batch size.
 //   - Use token bucket algorithm to control the rate.
 //   - Pipe permit channel directly to producer to throttle it; that would give better control
 //     over how much data to pull from pub/sub and when.

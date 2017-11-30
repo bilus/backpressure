@@ -26,8 +26,10 @@ type Metrics struct {
 
 func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *Metrics {
 	pipelineMetrics := Metrics{}
-	taskCh, taskPermitCh := Produce(ctx, &pipelineMetrics.ProducerMetrics, wg)
-	batchCh, batchPermitCh := Dispatch(ctx, tick, taskCh, taskPermitCh, &pipelineMetrics.DispatcherMetrics, wg)
+	taskChanSize := 4
+	taskCh, taskPermitCh := Produce(ctx, taskChanSize, &pipelineMetrics.ProducerMetrics, wg)
+	batchCh, batchPermitCh := Dispatch(ctx, tick, taskChanSize, taskChanSize/2, taskCh, taskPermitCh,
+		&pipelineMetrics.DispatcherMetrics, wg)
 	Consume(ctx, batchCh, batchPermitCh, &pipelineMetrics.ConsumerMetrics, wg)
 	ReportPeriodically(ctx, time.Second*5, &pipelineMetrics.ProducerMetrics, &pipelineMetrics.DispatcherMetrics,
 		&pipelineMetrics.ConsumerMetrics, wg)

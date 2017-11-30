@@ -15,8 +15,8 @@ import (
 //     Use 'completion ports' using chans = request & response.
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
-func Produce(ctx context.Context, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
-	out := make(chan Task)
+func Produce(ctx context.Context, taskChanSize int, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
+	taskCh := make(chan Task, taskChanSize)
 	permitCh := make(chan Permit, 1)
 
 	go func() {
@@ -33,14 +33,14 @@ func Produce(ctx context.Context, metrics *metrics.Metrics, wg *sync.WaitGroup) 
 				log.Printf(blue("Got permit: %v"), permit)
 				remaining := permit.SizeHint
 				for remaining > 0 {
-					time.Sleep(time.Second)
+					// time.Sleep(time.Second)
 					task := Task(rand.Int63())
 					metrics.Begin(1)
 					log.Printf(blue("=> Sending %v"), task)
 					select {
 					case <-ctx.Done():
 						return
-					case out <- task:
+					case taskCh <- task:
 						metrics.EndWithSuccess(1)
 						remaining -= 1
 						log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
@@ -53,5 +53,5 @@ func Produce(ctx context.Context, metrics *metrics.Metrics, wg *sync.WaitGroup) 
 		}
 	}()
 
-	return out, permitCh
+	return taskCh, permitCh
 }

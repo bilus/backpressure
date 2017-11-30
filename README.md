@@ -10,6 +10,8 @@ go run main.go
 
 ## TODO
 
+- Fix task chan size
+- User-defined backpressure strategy for dispatch
 - Multiple producers
 - Abstract task (?)
 - Measure idle consumer time

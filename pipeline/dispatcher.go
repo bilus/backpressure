@@ -8,17 +8,13 @@ import (
 	"time"
 )
 
-func Dispatch(ctx context.Context, tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	batchCh := make(chan Batch)
 	permitCh := make(chan Permit, 1)
-
-	batchSize := 4
-	lowWaterMark := 2
-
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
-		initialPermit := NewPermit(batchSize)
+		initialPermit := NewPermit(highWaterMark)
 		log.Printf(magenta("Sending permit: %v"), initialPermit)
 		taskPermitChan <- initialPermit
 		ticker := time.Tick(tick)
@@ -40,13 +36,14 @@ func Dispatch(ctx context.Context, tick time.Duration, taskCh chan Task, taskPer
 				} else {
 					metrics.EndWithSuccess(1)
 					if len(batch) == lowWaterMark {
-						newPermit := NewPermit(batchSize - len(batch))
+						newPermit := NewPermit(highWaterMark - len(batch))
 						log.Printf(magenta("Sending permit: %v"), newPermit)
 						taskPermitChan <- newPermit
 					}
 				}
 			case <-ticker:
 				batchCh <- batch
+				taskPermitChan <- NewPermit(highWaterMark)
 				<-permitCh
 				batch = NewBatch()
 			case <-ctx.Done():

@@ -18,26 +18,11 @@ var (
 	cyan    = color.New(color.FgCyan).SprintFunc()
 )
 
-// Use WorkGroup.
-func Run(tick time.Duration) {
-	wg := sync.WaitGroup{}
+func Run(tick time.Duration, wg *sync.WaitGroup) {
 	wg.Add(2)
-	taskCh := produce(&wg)
-	batchCh, permitCh := dispatch(tick, taskCh, &wg)
-	consume(batchCh, permitCh, &wg)
-
-	// Just to stop when tracing.
-	barrierCh := make(chan struct{})
-	go func() {
-		wg.Wait()
-		barrierCh <- struct{}{}
-	}()
-	select {
-	case <-barrierCh:
-		log.Println(green("Pipeline completed"))
-	case <-time.After(time.Second * 30):
-		log.Println(red("Timeout waiting for finish"))
-	}
+	taskCh := produce(wg)
+	batchCh, batchPermitCh := dispatch(tick, taskCh, wg)
+	consume(batchCh, batchPermitCh, wg)
 }
 
 type Task int64

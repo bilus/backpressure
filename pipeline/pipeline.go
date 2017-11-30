@@ -20,8 +20,8 @@ var (
 
 func Run(tick time.Duration, wg *sync.WaitGroup) {
 	wg.Add(2)
-	taskCh := produce(wg)
-	batchCh, batchPermitCh := dispatch(tick, taskCh, wg)
+	taskCh, taskPermitCh := produce(wg)
+	batchCh, batchPermitCh := dispatch(tick, taskCh, taskPermitCh, wg)
 	consume(batchCh, batchPermitCh, wg)
 }
 
@@ -34,14 +34,16 @@ type Batch []Task
 //   - Pipe permit channel directly to producer to throttle it; that would give better control
 //     over how much data to pull from pub/sub and when.
 //   - Interesting: http://bytopia.org/2016/09/14/implementing-leaky-channels/
-type Permit struct{}
+type Permit struct {
+	SizeHint int
+}
 
 func NewBatch() Batch {
 	return make(Batch, 0)
 }
 
-func NewPermit() Permit {
-	return Permit{}
+func NewPermit(sizeHint int) Permit {
+	return Permit{sizeHint}
 }
 
 func (batch Batch) AddTask(task Task) (Batch, error) {
@@ -64,35 +66,47 @@ func (batch Batch) AddTask(task Task) (Batch, error) {
 // - Batching permits
 // - Some simple recovery of lost permits(s) to prevent deadlocks.
 
-func produce(wg *sync.WaitGroup) chan Task {
+func produce(wg *sync.WaitGroup) (chan Task, chan Permit) {
 	out := make(chan Task)
-
-	go func() {
-		defer wg.Done()
-		for {
-			time.Sleep(time.Second)
-			task := Task(rand.Int63())
-			log.Printf(blue("=> Sending %v"), task)
-			select {
-			case out <- task:
-				log.Println(blue("=> OK"))
-			case <-time.After(time.Second * 5):
-				log.Println(red("=> Timeout in client"))
-			}
-
-		}
-
-	}()
-
-	return out
-}
-
-func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Batch, chan Permit) {
-	batchCh := make(chan Batch)
 	permitCh := make(chan Permit, 1)
 
 	go func() {
 		defer wg.Done()
+		for {
+			log.Printf(blue("Obtaining permit..."))
+			permit := <-permitCh
+			log.Printf(blue("Got permit: %v"), permit)
+			remaining := permit.SizeHint
+			for remaining > 0 {
+				time.Sleep(time.Second)
+				task := Task(rand.Int63())
+				log.Printf(blue("=> Sending %v"), task)
+				select {
+				case out <- task:
+					remaining -= 1
+					log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
+				case <-time.After(time.Second * 5):
+					log.Println(red("=> Timeout in client"))
+				}
+			}
+		}
+	}()
+
+	return out, permitCh
+}
+
+func dispatch(tick time.Duration, taskCh chan Task, taskPermitChan chan Permit, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+	batchCh := make(chan Batch)
+	permitCh := make(chan Permit, 1)
+
+	batchSize := 4
+	lowWaterMark := 2
+
+	go func() {
+		defer wg.Done()
+		initialPermit := NewPermit(batchSize)
+		log.Printf(magenta("Sending permit: %v"), initialPermit)
+		taskPermitChan <- initialPermit
 		ticker := time.Tick(tick)
 		batch := NewBatch()
 		for {
@@ -105,12 +119,18 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Ba
 				// Handle termination, flush current batch.
 				var err error
 				batch, err = batch.AddTask(task)
-				if err != nil {
+				switch {
+				case err != nil:
 					// Unable to buffer more tasks, drop the current one to the floor.
 					// ASK: Maybe round-robin is a better choice?
 					// Probably should use a Strategy here to make that
 					// configurable.
 					log.Printf(red("Dropping task: %v"), err)
+
+				case len(batch) == lowWaterMark:
+					newPermit := NewPermit(batchSize - len(batch))
+					log.Printf(magenta("Sending permit: %v"), newPermit)
+					taskPermitChan <- newPermit
 				}
 			}
 
@@ -133,7 +153,7 @@ func consume(batchCh chan Batch, permitCh chan Permit, wg *sync.WaitGroup) {
 
 			// TODO: Retries.
 			err := write(batch)
-			permitCh <- NewPermit()
+			permitCh <- NewPermit(1)
 			// Assumes writes are idempotent.
 			if err != nil {
 				log.Printf(red("Write error: %v (will retry)"), err)

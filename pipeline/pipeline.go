@@ -4,6 +4,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"golang.org/x/net/context"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -24,10 +25,19 @@ type Metrics struct {
 	ConsumerMetrics   metrics.Metrics
 }
 
+type FakeTaskProducer struct {
+	maxSleep int
+}
+
+func (ftp FakeTaskProducer) ProduceTask() *Task {
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(ftp.maxSleep)))
+	return &Task{rand.Int63()}
+}
+
 func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *Metrics {
 	pipelineMetrics := Metrics{}
 	taskChanSize := 4
-	taskCh, taskPermitCh := Produce(ctx, taskChanSize, &pipelineMetrics.ProducerMetrics, wg)
+	taskCh, taskPermitCh := Produce(ctx, FakeTaskProducer{500}, taskChanSize, &pipelineMetrics.ProducerMetrics, wg)
 	batchCh, batchPermitCh := Dispatch(ctx, tick, taskChanSize, taskChanSize/2, taskCh, taskPermitCh,
 		&pipelineMetrics.DispatcherMetrics, wg)
 	Consume(ctx, batchCh, batchPermitCh, &pipelineMetrics.ConsumerMetrics, wg)
@@ -36,7 +46,9 @@ func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *Metrics {
 	return &pipelineMetrics
 }
 
-type Task int64
+type Task struct {
+	val int64
+}
 type Batch []Task
 
 // ASK: There are many ways we could improve that. Ideas:

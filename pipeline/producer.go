@@ -28,29 +28,35 @@ func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, m
 		for {
 			select {
 			case <-ctx.Done():
+				log.Println(blue("Exiting producer"))
 				return
-
 			default:
 				log.Printf(blue("Obtaining permit..."))
-				permit := <-permitCh
-				log.Printf(blue("Got permit: %v"), permit)
-				remaining := permit.SizeHint
-				for remaining > 0 {
-					task := taskProducer.ProduceTask()
-					metrics.Begin(1)
-					log.Printf(blue("=> Sending %v"), task)
-					select {
-					case <-ctx.Done():
-						metrics.EndWithFailure(1)
-						return
-					case taskCh <- task:
-						metrics.EndWithSuccess(1)
-						remaining -= 1
-						log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
-					case <-time.After(time.Second * 5):
-						metrics.EndWithFailure(1)
-						log.Println(red("=> Timeout in client"))
+				select {
+				case permit := <-permitCh:
+					log.Printf(blue("Got permit: %v"), permit)
+					remaining := permit.SizeHint
+					for remaining > 0 {
+						task := taskProducer.ProduceTask()
+						metrics.Begin(1)
+						log.Printf(blue("=> Sending %v"), task)
+						select {
+						case <-ctx.Done():
+							metrics.EndWithFailure(1)
+							log.Println(blue("Exiting producer"))
+							return
+						case taskCh <- task:
+							metrics.EndWithSuccess(1)
+							remaining -= 1
+							log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
+						case <-time.After(time.Second * 5):
+							metrics.EndWithFailure(1)
+							log.Println(red("=> Timeout in client"))
+						}
 					}
+				case <-ctx.Done():
+					log.Println(blue("Exiting producer"))
+					return
 				}
 			}
 		}

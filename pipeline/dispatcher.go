@@ -20,7 +20,12 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 		defer wg.Done()
 		initialPermit := NewPermit(highWaterMark)
 		log.Printf(magenta("Sending permit: %v"), initialPermit)
-		taskPermitChan <- initialPermit
+		select {
+		case taskPermitChan <- initialPermit:
+		case <-ctx.Done():
+			log.Println(magenta("Exiting dispatcher"))
+			return
+		}
 		waterLevel := initialPermit.SizeHint
 		ticker := time.Tick(tick)
 		batch := NewBatch()
@@ -49,6 +54,7 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 					case taskPermitChan <- newPermit:
 						waterLevel = highWaterMark
 					case <-ctx.Done():
+						log.Println(magenta("Exiting dispatcher"))
 						return
 					}
 				}
@@ -59,11 +65,13 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 					case <-permitCh:
 						batch = NewBatch()
 					case <-ctx.Done():
+						log.Println(magenta("Exiting dispatcher"))
 						return
 
 					}
 				}
 			case <-ctx.Done():
+				log.Println(magenta("Exiting dispatcher"))
 				return
 			}
 

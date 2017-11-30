@@ -4,6 +4,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"golang.org/x/net/context"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -34,13 +35,24 @@ func (ftp FakeTaskProducer) ProduceTask() *Task {
 	return &Task{rand.Int63()}
 }
 
+type FakeBatchConsumer struct {
+	maxSleep int
+}
+
+func (fbc FakeBatchConsumer) ConsumeBatch(batch Batch) error {
+	log.Println(yellow("<= Writing..."))
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(fbc.maxSleep)))
+	log.Printf(yellow("<= %v"), batch)
+	return nil
+}
+
 func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *Metrics {
 	pipelineMetrics := Metrics{}
 	taskChanSize := 4
 	taskCh, taskPermitCh := Produce(ctx, FakeTaskProducer{500}, taskChanSize, &pipelineMetrics.ProducerMetrics, wg)
 	batchCh, batchPermitCh := Dispatch(ctx, tick, taskChanSize, taskChanSize/2, taskCh, taskPermitCh,
 		&pipelineMetrics.DispatcherMetrics, wg)
-	Consume(ctx, batchCh, batchPermitCh, &pipelineMetrics.ConsumerMetrics, wg)
+	Consume(ctx, FakeBatchConsumer{1000}, batchCh, batchPermitCh, &pipelineMetrics.ConsumerMetrics, wg)
 	ReportPeriodically(ctx, time.Second*5, &pipelineMetrics.ProducerMetrics, &pipelineMetrics.DispatcherMetrics,
 		&pipelineMetrics.ConsumerMetrics, wg)
 	return &pipelineMetrics

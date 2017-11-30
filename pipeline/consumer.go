@@ -4,12 +4,14 @@ import (
 	"github.com/nowthisnews/dp-pubsub-archai/metrics"
 	"golang.org/x/net/context"
 	"log"
-	"math/rand"
 	"sync"
-	"time"
 )
 
-func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
+type BatchConsumer interface {
+	ConsumeBatch(batch Batch) error
+}
+
+func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
@@ -32,7 +34,7 @@ func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 				// ASK: How to make that shit idempotent:
 				// - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
 				// - have Archai by adding an operation id to each operation and a way to query Archai for its status
-				err := write(batch)
+				err := batchConsumer.ConsumeBatch(batch)
 				// Assumes writes are idempotent.
 				if err != nil {
 					log.Printf(red("Write error: %v (will retry)"), err)
@@ -49,11 +51,4 @@ func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 			}
 		}
 	}()
-}
-
-func write(batch Batch) error {
-	log.Println(yellow("<= Writing..."))
-	time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
-	log.Printf(yellow("<= %v"), batch)
-	return nil
 }

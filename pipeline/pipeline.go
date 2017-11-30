@@ -18,14 +18,20 @@ var (
 	cyan    = color.New(color.FgCyan).SprintFunc()
 )
 
-func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) {
-	producerMetrics := metrics.New()
-	taskCh, taskPermitCh := Produce(ctx, &producerMetrics, wg)
-	dispatcherMetrics := metrics.New()
-	batchCh, batchPermitCh := Dispatch(ctx, tick, taskCh, taskPermitCh, &dispatcherMetrics, wg)
-	consumerMetrics := metrics.New()
-	Consume(ctx, batchCh, batchPermitCh, &consumerMetrics, wg)
-	ReportPeriodically(ctx, time.Second*5, &producerMetrics, &dispatcherMetrics, &consumerMetrics, wg)
+type Metrics struct {
+	ProducerMetrics   metrics.Metrics
+	DispatcherMetrics metrics.Metrics
+	ConsumerMetrics   metrics.Metrics
+}
+
+func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *Metrics {
+	pipelineMetrics := Metrics{}
+	taskCh, taskPermitCh := Produce(ctx, &pipelineMetrics.ProducerMetrics, wg)
+	batchCh, batchPermitCh := Dispatch(ctx, tick, taskCh, taskPermitCh, &pipelineMetrics.DispatcherMetrics, wg)
+	Consume(ctx, batchCh, batchPermitCh, &pipelineMetrics.ConsumerMetrics, wg)
+	ReportPeriodically(ctx, time.Second*5, &pipelineMetrics.ProducerMetrics, &pipelineMetrics.DispatcherMetrics,
+		&pipelineMetrics.ConsumerMetrics, wg)
+	return &pipelineMetrics
 }
 
 type Task int64

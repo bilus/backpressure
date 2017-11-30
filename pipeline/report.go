@@ -17,7 +17,6 @@ func ReportPeriodically(ctx context.Context, tick time.Duration, producerMetrics
 		for {
 			select {
 			case <-ctx.Done():
-				ReportMetrics(*producerMetrics, *dispatcherMetrics, *consumerMetrics)
 				return
 			case <-time.After(time.Second * 5):
 				ReportMetrics(*producerMetrics, *dispatcherMetrics, *consumerMetrics)

@@ -22,7 +22,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	signalsCh := setupTermination(cancel)
 
-	pipeline.Run(ctx, time.Second*5, &wg)
+	metrics := pipeline.Run(ctx, time.Second*5, &wg)
 
 	// We won't ever wait for this one.
 	go func() {
@@ -32,6 +32,7 @@ func main() {
 
 	waitToTerminate(&wg, gracePeriod)
 
+	pipeline.ReportMetrics(metrics.ProducerMetrics, metrics.DispatcherMetrics, metrics.ConsumerMetrics)
 	// trace.Stop()
 }
 

@@ -10,10 +10,9 @@ go run main.go
 
 ## TODO
 
-- Fix hang on Ctrl+C
+- Abstract task (?)
 - User-defined backpressure strategy for dispatch
 - Multiple producers
-- Abstract task (?)
 - Measure idle consumer time
 - Wait to stop pipeline
 - Retries

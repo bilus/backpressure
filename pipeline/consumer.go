@@ -33,7 +33,6 @@ func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 				// - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
 				// - have Archai by adding an operation id to each operation and a way to query Archai for its status
 				err := write(batch)
-				permitCh <- NewPermit(1)
 				// Assumes writes are idempotent.
 				if err != nil {
 					log.Printf(red("Write error: %v (will retry)"), err)
@@ -41,6 +40,11 @@ func Consume(ctx context.Context, batchCh chan Batch, permitCh chan Permit, metr
 				} else {
 					metrics.EndWithSuccess(batchSize)
 
+				}
+				select {
+				case permitCh <- NewPermit(1):
+				case <-ctx.Done():
+					return
 				}
 			}
 		}

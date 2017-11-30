@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitChan chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitChan chan Permit,
+	metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	if highWaterMark == lowWaterMark {
 		panic("Dispatch highWaterMark must be higher than lowWaterMark")
 	}
@@ -44,14 +45,23 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 				if waterLevel <= lowWaterMark {
 					newPermit := NewPermit(highWaterMark - waterLevel)
 					log.Printf(magenta("Sending permit: %v"), newPermit)
-					taskPermitChan <- newPermit
-					waterLevel = highWaterMark
+					select {
+					case taskPermitChan <- newPermit:
+						waterLevel = highWaterMark
+					case <-ctx.Done():
+						return
+					}
 				}
 			case <-ticker:
 				if len(batch) > 0 {
 					batchCh <- batch
-					<-permitCh
-					batch = NewBatch()
+					select {
+					case <-permitCh:
+						batch = NewBatch()
+					case <-ctx.Done():
+						return
+
+					}
 				}
 			case <-ctx.Done():
 				return

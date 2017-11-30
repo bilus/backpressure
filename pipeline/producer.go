@@ -39,6 +39,7 @@ func Produce(ctx context.Context, taskChanSize int, metrics *metrics.Metrics, wg
 					log.Printf(blue("=> Sending %v"), task)
 					select {
 					case <-ctx.Done():
+						metrics.EndWithFailure(1)
 						return
 					case taskCh <- task:
 						metrics.EndWithSuccess(1)

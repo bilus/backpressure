@@ -14,15 +14,15 @@ import (
 )
 
 func main() {
-	executionTimeLimit := time.Second * 30
-	gracePeriod := time.Second * 15
+	executionTimeLimit := time.Second * 900
+	gracePeriod := time.Second * 10
 
 	// trace.Start(os.Stdout)
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	signalsCh := setupTermination(cancel)
 
-	metrics := pipeline.Run(ctx, time.Second*5, &wg)
+	metrics := pipeline.Run(ctx, time.Millisecond*100, &wg)
 
 	// We won't ever wait for this one.
 	go func() {
@@ -30,7 +30,7 @@ func main() {
 		signalsCh <- syscall.SIGINT // Simulate Ctrl+C for our tracing.
 	}()
 
-	waitToTerminate(&wg, gracePeriod)
+	waitToTerminate(ctx, &wg, gracePeriod)
 
 	pipeline.ReportMetrics(metrics.ProducerMetrics, metrics.DispatcherMetrics, metrics.ConsumerMetrics)
 	// trace.Stop()
@@ -51,12 +51,16 @@ func setupTermination(cancel context.CancelFunc) chan os.Signal {
 	return signalsCh
 }
 
-func waitToTerminate(wg *sync.WaitGroup, gracePeriod time.Duration) {
-	// Just to stop when tracing.
+func waitToTerminate(ctx context.Context, wg *sync.WaitGroup, gracePeriod time.Duration) {
+	<-ctx.Done()
+	waitWithTimeout(wg, gracePeriod)
+}
+
+func waitWithTimeout(wg *sync.WaitGroup, gracePeriod time.Duration) {
 	barrierCh := make(chan struct{})
 	go func() {
 		wg.Wait()
-		barrierCh <- struct{}{}
+		close(barrierCh)
 	}()
 	select {
 	case <-barrierCh:

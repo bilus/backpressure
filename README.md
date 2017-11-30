@@ -10,7 +10,7 @@ go run main.go
 
 ## TODO
 
-- Fix task chan size
+- Fix hang on Ctrl+C
 - User-defined backpressure strategy for dispatch
 - Multiple producers
 - Abstract task (?)

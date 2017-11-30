@@ -23,8 +23,8 @@ func Run(tick time.Duration) {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	taskCh := produce(&wg)
-	batchCh, tokenCh := dispatch(tick, taskCh, &wg)
-	consume(batchCh, tokenCh, &wg)
+	batchCh, permitCh := dispatch(tick, taskCh, &wg)
+	consume(batchCh, permitCh, &wg)
 
 	// Just to stop when tracing.
 	barrierCh := make(chan struct{})
@@ -45,19 +45,18 @@ type Batch []Task
 
 // ASK: There are many ways we could improve that. Ideas:
 //   - Extend it to provide hints about max batch size.
-//   - Use real token bucket algorithm to control the rate.
-//   - Pipe token channel directly to producer to throttle it (but then we may need to
-//     use something close to adaptive token buffer); that would give better control
+//   - Use token bucket algorithm to control the rate.
+//   - Pipe permit channel directly to producer to throttle it; that would give better control
 //     over how much data to pull from pub/sub and when.
 //   - Interesting: http://bytopia.org/2016/09/14/implementing-leaky-channels/
-type Token struct{}
+type Permit struct{}
 
 func NewBatch() Batch {
 	return make(Batch, 0)
 }
 
-func NewToken() Token {
-	return Token{}
+func NewPermit() Permit {
+	return Permit{}
 }
 
 func (batch Batch) AddTask(task Task) (Batch, error) {
@@ -77,8 +76,8 @@ func (batch Batch) AddTask(task Task) (Batch, error) {
 // - Measure idle consumer time
 // - Cleanly handle TERM
 // - Retries
-// - Batching tokens/permits
-// - Some simple recovery of lost token(s) to prevent deadlocks.
+// - Batching permits
+// - Some simple recovery of lost permits(s) to prevent deadlocks.
 
 func produce(wg *sync.WaitGroup) chan Task {
 	out := make(chan Task)
@@ -86,7 +85,6 @@ func produce(wg *sync.WaitGroup) chan Task {
 	go func() {
 		defer wg.Done()
 		for {
-			log.Println(blue("=> Sleeping..."))
 			time.Sleep(time.Second)
 			task := Task(rand.Int63())
 			log.Printf(blue("=> Sending %v"), task)
@@ -104,9 +102,9 @@ func produce(wg *sync.WaitGroup) chan Task {
 	return out
 }
 
-func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Batch, chan Token) {
+func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	batchCh := make(chan Batch)
-	tokenCh := make(chan Token, 1)
+	permitCh := make(chan Permit, 1)
 
 	go func() {
 		defer wg.Done()
@@ -116,7 +114,7 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Ba
 			select {
 			case <-ticker:
 				batchCh <- batch
-				<-tokenCh
+				<-permitCh
 				batch = NewBatch()
 			case task := <-taskCh:
 				// Handle termination, flush current batch.
@@ -134,11 +132,11 @@ func dispatch(tick time.Duration, taskCh chan Task, wg *sync.WaitGroup) (chan Ba
 		}
 	}()
 
-	return batchCh, tokenCh
+	return batchCh, permitCh
 }
 
 // TODO: Measure idle time.
-func consume(batchCh chan Batch, tokenCh chan Token, wg *sync.WaitGroup) {
+func consume(batchCh chan Batch, permitCh chan Permit, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		for {
@@ -150,7 +148,7 @@ func consume(batchCh chan Batch, tokenCh chan Token, wg *sync.WaitGroup) {
 
 			// TODO: Retries.
 			err := write(batch)
-			tokenCh <- NewToken()
+			permitCh <- NewPermit()
 			// Assumes writes are idempotent.
 			if err != nil {
 				log.Printf(red("Write error: %v (will retry)"), err)

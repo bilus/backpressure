@@ -10,14 +10,14 @@ go run main.go
 
 ## TODO
 
-- Refactor. Close channels, may do without Done() the. Senders must close their channels.
-- RPS to basic metrics
 - Push example
 - Pull example
 - Automated test
+- Refactor.
 
+
+- RPS to basic metrics
 - DD metrics example
-
 - Turn into a library.
 - Pub/sub reader.
 - Archai writer.

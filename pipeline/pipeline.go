@@ -68,10 +68,10 @@ func (fbc FakeBatchConsumer) ConsumeBatch(batch Batch) error {
 func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup) *PipelineMetrics {
 	pipelineMetrics := NewPipelineMetrics()
 	taskChanSize := 4
-	taskCh, taskPermitCh := Produce(ctx, FakeTaskProducer{5}, taskChanSize, pipelineMetrics.ProducerMetrics, wg)
+	taskCh, taskPermitCh := Produce(ctx, FakeTaskProducer{500}, taskChanSize, pipelineMetrics.ProducerMetrics, wg)
 	batchCh, batchPermitCh := Dispatch(ctx, tick, taskChanSize, taskChanSize/2, taskCh, taskPermitCh,
 		pipelineMetrics.DispatcherMetrics, wg)
-	Consume(ctx, FakeBatchConsumer{10}, batchCh, batchPermitCh, pipelineMetrics.ConsumerMetrics, wg)
+	Consume(ctx, FakeBatchConsumer{1000}, batchCh, batchPermitCh, pipelineMetrics.ConsumerMetrics, wg)
 	ReportPeriodically(ctx, time.Second*5, pipelineMetrics.ProducerMetrics, pipelineMetrics.DispatcherMetrics,
 		pipelineMetrics.ConsumerMetrics, wg)
 	return &pipelineMetrics

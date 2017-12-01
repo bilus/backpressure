@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitChan chan Permit,
+func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitCh chan Permit,
 	metrics metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	if highWaterMark == lowWaterMark {
 		panic("Dispatch highWaterMark must be higher than lowWaterMark")
@@ -21,7 +21,7 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 		initialPermit := NewPermit(highWaterMark)
 		log.Printf(magenta("Sending permit: %v"), initialPermit)
 		select {
-		case taskPermitChan <- initialPermit:
+		case taskPermitCh <- initialPermit:
 		case <-ctx.Done():
 			log.Println(magenta("Exiting dispatcher"))
 			return
@@ -51,7 +51,7 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 					newPermit := NewPermit(highWaterMark - waterLevel)
 					log.Printf(magenta("Sending permit: %v"), newPermit)
 					select {
-					case taskPermitChan <- newPermit:
+					case taskPermitCh <- newPermit:
 						waterLevel = highWaterMark
 					case <-ctx.Done():
 						log.Println(magenta("Exiting dispatcher"))
@@ -60,9 +60,9 @@ func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWat
 				}
 			case <-ticker:
 				if len(batch) > 0 {
-					batchCh <- batch
 					select {
 					case <-permitCh:
+						batchCh <- batch
 						batch = NewBatch()
 					case <-ctx.Done():
 						log.Println(magenta("Exiting dispatcher"))

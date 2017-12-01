@@ -15,6 +15,14 @@ func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh chan Batc
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
+		initialPermit := NewPermit(1)
+		select {
+		case permitCh <- initialPermit:
+		case <-ctx.Done():
+			log.Println(yellow("Exiting consumer"))
+			return
+		}
+
 		for {
 			select {
 			case <-ctx.Done():

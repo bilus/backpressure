@@ -10,8 +10,13 @@ go run main.go
 
 ## TODO
 
+- RPS to basic metrics
+- DD metrics example
+- Push example
+- Pull example
+- Automated test
+
 - User-defined backpressure strategy for dispatch
-- Multiple producers
 - Measure idle consumer time
 - Retries
 - Some simple recovery of lost permits(s) to prevent deadlocks.

@@ -35,7 +35,7 @@ func ReportMetrics(metrics... metrics.Metrics) {
 }
 
 func printTable(header []string, data [][]string) {
-	table := tablewriter.NewWriter(os.Stderr) // TODO: Write to log.
+	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader(header)
 	for _, row := range data {
 		table.Append(row)

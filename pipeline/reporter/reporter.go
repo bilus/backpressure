@@ -1,7 +1,7 @@
-package pipeline
+package reporter
 
 import (
-	"github.com/nowthisnews/dp-pubsub-archai/metrics"
+	"github.com/bilus/backpressure/metrics"
 	"github.com/olekukonko/tablewriter"
 	"golang.org/x/net/context"
 	"os"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func ReportPeriodically(ctx context.Context, tick time.Duration, producerMetrics, dispatcherMetrics, consumerMetrics metrics.Metrics, wg *sync.WaitGroup) {
+func Run(ctx context.Context, tick time.Duration, producerMetrics, dispatcherMetrics, consumerMetrics metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
@@ -24,8 +24,8 @@ func ReportPeriodically(ctx context.Context, tick time.Duration, producerMetrics
 	}()
 }
 
-func ReportMetrics(metrics... metrics.Metrics) {
-	header := append([]string{"source"},metrics[0].Labels()...)
+func ReportMetrics(metrics ...metrics.Metrics) {
+	header := append([]string{"source"}, metrics[0].Labels()...)
 	rows := make([][]string, len(metrics))
 	for i, m := range metrics {
 		rows[i] = append([]string{m.SourceName()}, m.Values()...)

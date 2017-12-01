@@ -1,7 +1,10 @@
-package pipeline
+package producer
 
 import (
-	"github.com/nowthisnews/dp-pubsub-archai/metrics"
+	"github.com/bilus/backpressure/colors"
+	"github.com/bilus/backpressure/metrics"
+	"github.com/bilus/backpressure/pipeline/permit"
+	"github.com/bilus/backpressure/pipeline/task"
 	"golang.org/x/net/context"
 	"log"
 	"sync"
@@ -14,44 +17,40 @@ import (
 //     Use 'completion ports' using chans = request & response.
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
-type TaskProducer interface {
-	ProduceTask() Task
-}
-
-func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, metrics metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
-	taskCh := make(chan Task, taskChanSize)
-	permitCh := make(chan Permit, 1) // Needs to be closed by the caller.
+func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, metrics metrics.Metrics, wg *sync.WaitGroup) (chan task.Task, chan permit.Permit) {
+	taskCh := make(chan task.Task, taskChanSize)
+	permitCh := make(chan permit.Permit, 1) // Needs to be closed by the caller.
 
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
 		defer close(taskCh)
 		for {
-			log.Printf(blue("Obtaining permit..."))
+			log.Printf(colors.Blue("Obtaining permit..."))
 			select {
 			case permit := <-permitCh:
-				log.Printf(blue("Got permit: %v"), permit)
+				log.Printf(colors.Blue("Got permit: %v"), permit)
 				remaining := permit.SizeHint
 				for remaining > 0 {
 					task := taskProducer.ProduceTask()
 					metrics.Begin(1)
-					log.Printf(blue("=> Sending %v"), task)
+					log.Printf(colors.Blue("=> Sending %v"), task)
 					select {
 					case <-ctx.Done():
 						metrics.EndWithFailure(1)
-						log.Println(blue("Exiting producer"))
+						log.Println(colors.Blue("Exiting producer"))
 						return
 					case taskCh <- task:
 						metrics.EndWithSuccess(1)
 						remaining -= 1
-						log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
+						log.Printf(colors.Blue("=> OK, permits remaining: {%v}"), remaining)
 					case <-time.After(time.Second * 5):
 						metrics.EndWithFailure(1)
-						log.Println(red("=> Timeout in client"))
+						log.Println(colors.Red("=> Timeout in client"))
 					}
 				}
 			case <-ctx.Done():
-				log.Println(blue("Exiting producer"))
+				log.Println(colors.Blue("Exiting producer"))
 				return
 			}
 		}

@@ -1,7 +1,8 @@
 package main
 
 import (
-	"github.com/nowthisnews/dp-pubsub-archai/pipeline"
+	"github.com/bilus/backpressure/pipeline"
+	"github.com/bilus/backpressure/pipeline/reporter"
 	"golang.org/x/net/context"
 	// "runtime/trace"
 	"log"
@@ -31,7 +32,7 @@ func main() {
 
 	waitToTerminate(ctx, &wg, gracePeriod)
 
-	pipeline.ReportMetrics(metrics.ProducerMetrics, metrics.DispatcherMetrics, metrics.ConsumerMetrics)
+	reporter.ReportMetrics(metrics.ProducerMetrics, metrics.DispatcherMetrics, metrics.ConsumerMetrics)
 	// trace.Stop()
 }
 

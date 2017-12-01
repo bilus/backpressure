@@ -1,32 +1,31 @@
-package pipeline
+package consumer
 
 import (
-	"github.com/nowthisnews/dp-pubsub-archai/metrics"
+	"github.com/bilus/backpressure/colors"
+	"github.com/bilus/backpressure/metrics"
+	"github.com/bilus/backpressure/pipeline/batch"
+	"github.com/bilus/backpressure/pipeline/permit"
 	"golang.org/x/net/context"
 	"log"
 	"sync"
 )
 
-type BatchConsumer interface {
-	ConsumeBatch(batch Batch) error
-}
-
-func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh <-chan Batch, permitCh chan<- Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
+func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
-		initialPermit := NewPermit(1)
+		initialPermit := permit.New(1)
 		select {
 		case permitCh <- initialPermit:
 		case <-ctx.Done():
-			log.Println(yellow("Exiting consumer"))
+			log.Println(colors.Yellow("Exiting consumer"))
 			return
 		}
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println(yellow("Exiting consumer"))
+				log.Println(colors.Yellow("Exiting consumer"))
 				return
 			default:
 				select {
@@ -34,7 +33,7 @@ func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh <-chan Ba
 					batchSize := uint64(len(batch))
 					metrics.Begin(batchSize)
 					if !ok {
-						log.Println(yellow("Exiting consumer"))
+						log.Println(colors.Yellow("Exiting consumer"))
 						metrics.EndWithFailure(batchSize) // TODO: Flush what's in batch!
 						return
 					}
@@ -47,20 +46,20 @@ func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh <-chan Ba
 					err := batchConsumer.ConsumeBatch(batch)
 					// Assumes writes are idempotent.
 					if err != nil {
-						log.Printf(red("Write error: %v (will retry)"), err)
+						log.Printf(colors.Red("Write error: %v (will retry)"), err)
 						metrics.EndWithFailure(batchSize)
 					} else {
 						metrics.EndWithSuccess(batchSize)
 
 					}
 					select {
-					case permitCh <- NewPermit(1):
+					case permitCh <- permit.New(1):
 					case <-ctx.Done():
-						log.Println(yellow("Exiting consumer"))
+						log.Println(colors.Yellow("Exiting consumer"))
 						return
 					}
 				case <-ctx.Done():
-					log.Println(yellow("Exiting consumer"))
+					log.Println(colors.Yellow("Exiting consumer"))
 					return
 
 				}

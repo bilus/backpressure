@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitCh chan Permit,
+func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh <-chan Task, taskPermitCh chan Permit,
 	metrics metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	if highWaterMark == lowWaterMark {
 		panic("Dispatch highWaterMark must be higher than lowWaterMark")

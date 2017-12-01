@@ -20,44 +20,39 @@ type TaskProducer interface {
 
 func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, metrics metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
 	taskCh := make(chan Task, taskChanSize)
-	permitCh := make(chan Permit, 1)
+	permitCh := make(chan Permit, 1) // Needs to be closed by the caller.
 
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
+		defer close(taskCh)
 		for {
+			log.Printf(blue("Obtaining permit..."))
 			select {
+			case permit := <-permitCh:
+				log.Printf(blue("Got permit: %v"), permit)
+				remaining := permit.SizeHint
+				for remaining > 0 {
+					task := taskProducer.ProduceTask()
+					metrics.Begin(1)
+					log.Printf(blue("=> Sending %v"), task)
+					select {
+					case <-ctx.Done():
+						metrics.EndWithFailure(1)
+						log.Println(blue("Exiting producer"))
+						return
+					case taskCh <- task:
+						metrics.EndWithSuccess(1)
+						remaining -= 1
+						log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
+					case <-time.After(time.Second * 5):
+						metrics.EndWithFailure(1)
+						log.Println(red("=> Timeout in client"))
+					}
+				}
 			case <-ctx.Done():
 				log.Println(blue("Exiting producer"))
 				return
-			default:
-				log.Printf(blue("Obtaining permit..."))
-				select {
-				case permit := <-permitCh:
-					log.Printf(blue("Got permit: %v"), permit)
-					remaining := permit.SizeHint
-					for remaining > 0 {
-						task := taskProducer.ProduceTask()
-						metrics.Begin(1)
-						log.Printf(blue("=> Sending %v"), task)
-						select {
-						case <-ctx.Done():
-							metrics.EndWithFailure(1)
-							log.Println(blue("Exiting producer"))
-							return
-						case taskCh <- task:
-							metrics.EndWithSuccess(1)
-							remaining -= 1
-							log.Printf(blue("=> OK, permits remaining: {%v}"), remaining)
-						case <-time.After(time.Second * 5):
-							metrics.EndWithFailure(1)
-							log.Println(red("=> Timeout in client"))
-						}
-					}
-				case <-ctx.Done():
-					log.Println(blue("Exiting producer"))
-					return
-				}
 			}
 		}
 	}()

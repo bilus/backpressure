@@ -11,7 +11,7 @@ type BatchConsumer interface {
 	ConsumeBatch(batch Batch) error
 }
 
-func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh chan Batch, permitCh chan Permit, metrics *metrics.Metrics, wg *sync.WaitGroup) {
+func Consume(ctx context.Context, batchConsumer BatchConsumer, batchCh chan Batch, permitCh chan Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
 	go func() {
 		wg.Add(1)
 		defer wg.Done()

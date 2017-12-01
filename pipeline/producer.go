@@ -18,7 +18,7 @@ type TaskProducer interface {
 	ProduceTask() Task
 }
 
-func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
+func Produce(ctx context.Context, taskProducer TaskProducer, taskChanSize int, metrics metrics.Metrics, wg *sync.WaitGroup) (chan Task, chan Permit) {
 	taskCh := make(chan Task, taskChanSize)
 	permitCh := make(chan Permit, 1)
 

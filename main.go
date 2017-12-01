@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/nowthisnews/dp-pubsub-archai/pipeline"
 	"golang.org/x/net/context"
-	// "os"
 	// "runtime/trace"
 	"log"
 	"os"

@@ -9,7 +9,7 @@ import (
 )
 
 func Dispatch(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh chan Task, taskPermitChan chan Permit,
-	metrics *metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
+	metrics metrics.Metrics, wg *sync.WaitGroup) (chan Batch, chan Permit) {
 	if highWaterMark == lowWaterMark {
 		panic("Dispatch highWaterMark must be higher than lowWaterMark")
 	}

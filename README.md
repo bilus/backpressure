@@ -12,9 +12,10 @@ go run main.go
 
 - Push example
 - Pull example
+- When Done() all messages should go through the pipeline.
 - Automated test
-- Refactor.
-
+- Make PipelineMetrics a map => metrics.PipelineMetrics.
+- Rename metrics.Metrics to metrics.Counters.
 
 - RPS to basic metrics
 - DD metrics example

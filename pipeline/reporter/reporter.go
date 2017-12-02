@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func Run(ctx context.Context, tick time.Duration, producerMetrics, dispatcherMetrics, consumerMetrics metrics.Metrics, wg *sync.WaitGroup) {
+func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup, metrics ...metrics.Metrics) {
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
@@ -18,7 +18,7 @@ func Run(ctx context.Context, tick time.Duration, producerMetrics, dispatcherMet
 			case <-ctx.Done():
 				return
 			case <-time.After(time.Second * 5):
-				ReportMetrics(producerMetrics, dispatcherMetrics, consumerMetrics)
+				ReportMetrics(metrics...)
 			}
 		}
 	}()

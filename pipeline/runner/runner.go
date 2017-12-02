@@ -30,18 +30,16 @@ func DefaultConfig() Config {
 	}
 }
 
-func RunPipeline(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer) {
-	// trace.Start(os.Stdout)
-	wg := sync.WaitGroup{}
+func RunPipeline(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer, wg *sync.WaitGroup) {
 	ctx, cancel := context.WithCancel(ctx)
 	signalsCh := setupTermination(cancel)
 
-	metrics := pipeline.Run(ctx, config.DispatchTick, config.TaskQueueSize, taskProducer, batchConsumer, &wg)
+	metrics := pipeline.Run(ctx, config.DispatchTick, config.TaskQueueSize, taskProducer, batchConsumer, wg)
 
 	if config.ExecutionTimeLimit > 0 {
 		terminateAfter(config.ExecutionTimeLimit, signalsCh)
 	}
-	waitToTerminate(ctx, &wg, config.ShutdownGracePeriod)
+	waitToTerminate(ctx, wg, config.ShutdownGracePeriod)
 
 	reporter.ReportMetrics(metrics...)
 }

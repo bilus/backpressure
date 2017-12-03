@@ -2,7 +2,7 @@ package httputil
 
 import (
 	"github.com/bilus/backpressure/colors"
-	"io"
+	"golang.org/x/net/context"
 	"log"
 	"net"
 	"net/http"
@@ -10,22 +10,16 @@ import (
 	"time"
 )
 
-func ListenAndServeWithClose(addr string, handler http.Handler, wg *sync.WaitGroup) (io.Closer, error) {
-	var (
-		listener  net.Listener
-		srvCloser io.Closer
-		err       error
-	)
-
+func ListenAndServeWithContext(ctx context.Context, addr string, handler http.Handler, wg *sync.WaitGroup) error {
 	srv := &http.Server{Addr: addr, Handler: handler}
 
 	if addr == "" {
 		addr = ":http"
 	}
 
-	listener, err = net.Listen("tcp", addr)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	wg.Add(1)
@@ -36,10 +30,18 @@ func ListenAndServeWithClose(addr string, handler http.Handler, wg *sync.WaitGro
 			log.Printf(colors.Red("HTTP server error: %v"), err)
 			return
 		}
+		log.Println("Exiting server")
 	}()
 
-	srvCloser = listener
-	return srvCloser, nil
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+		log.Println("1")
+		listener.Close()
+	}()
+
+	return nil
 }
 
 type tcpKeepAliveListener struct {

@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"errors"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/permit"
@@ -17,12 +18,12 @@ import (
 //     Use 'completion ports' using chans = request & response.
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
-func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, metrics metrics.Metrics, wg *sync.WaitGroup) (chan task.Task, chan permit.Permit) {
+func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shutdownGracePeriod time.Duration, metrics metrics.Metrics, wg *sync.WaitGroup) (chan task.Task, chan permit.Permit) {
 	taskCh := make(chan task.Task, taskChanSize)
 	permitCh := make(chan permit.Permit, 1) // Needs to be closed by the caller.
 
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		defer close(taskCh)
 		for {
@@ -32,21 +33,27 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, metr
 				log.Printf(colors.Blue("Got permit: %v"), permit)
 				remaining := permit.SizeHint
 				for remaining > 0 {
-					task := taskProducer.ProduceTask()
-					metrics.Begin(1)
-					log.Printf(colors.Blue("=> Sending %v"), task)
-					select {
-					case <-ctx.Done():
-						metrics.EndWithFailure(1)
-						log.Println(colors.Blue("Exiting producer"))
-						return
-					case taskCh <- task:
-						metrics.EndWithSuccess(1)
-						remaining -= 1
-						log.Printf(colors.Blue("=> OK, permits remaining: {%v}"), remaining)
-					case <-time.After(time.Second * 5):
-						metrics.EndWithFailure(1)
-						log.Println(colors.Red("=> Timeout in client"))
+					// TODO: Refactor.
+					newTask, err := taskProducer.ProduceTask(ctx)
+					if err != nil {
+						if becauseDone(err) {
+							log.Println(colors.Blue("Exiting producer"))
+							return
+						} else {
+							log.Println(colors.Red("Error producing task: %v"), err)
+						}
+					} else {
+						select {
+						case err := <-queueTask(ctx, taskCh, newTask, shutdownGracePeriod, metrics):
+							if err != nil {
+								log.Println(colors.Red("Error queuing task: %v"), err)
+							} else {
+								remaining--
+							}
+						case <-ctx.Done():
+							log.Println(colors.Blue("Exiting producer"))
+							return
+						}
 					}
 				}
 			case <-ctx.Done():
@@ -57,4 +64,36 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, metr
 	}()
 
 	return taskCh, permitCh
+}
+
+func becauseDone(err error) bool {
+	taskError, ok := err.(task.Error)
+	if ok && taskError.Done() {
+		return true
+	} else {
+		return false
+	}
+}
+
+func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration, metrics metrics.Metrics) <-chan error {
+	errCh := make(chan error, 1)
+	log.Printf(colors.Blue("=> Sending %v"), task)
+	metrics.Begin(1)
+	select {
+	case taskCh <- task:
+		metrics.EndWithSuccess(1)
+		errCh <- nil
+	case <-ctx.Done():
+		log.Printf(colors.Blue("=> Sending %v (last orders, please)"), task)
+		select {
+		// Last desperate attempt.
+		case taskCh <- task:
+			metrics.EndWithSuccess(1)
+			errCh <- nil
+		case <-time.After(gracePeriod):
+			metrics.EndWithFailure(1)
+			errCh <- errors.New("Timeout during shutdown")
+		}
+	}
+	return errCh
 }

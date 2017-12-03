@@ -19,8 +19,8 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	}
 	batchCh := make(chan batch.Batch)
 	permitCh := make(chan permit.Permit, 1)
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		initialPermit := permit.New(highWaterMark)
 		log.Printf(colors.Magenta("Sending permit: %v"), initialPermit)

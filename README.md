@@ -10,9 +10,6 @@ go run main.go
 
 ## TODO
 
-- Push example
-- Too many tasks produced
-- Hangs on exit
 - Pull example
 - Wait to interrupt http server
 - Wait to interrupt writing to chan in push handler

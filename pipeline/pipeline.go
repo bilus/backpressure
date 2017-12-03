@@ -15,13 +15,13 @@ import (
 
 type PipelineMetrics = []metrics.Metrics
 
-func Run(ctx context.Context, tick time.Duration, taskQueueSize int, taskProducer task.Producer, batchConsumer batch.Consumer, wg *sync.WaitGroup) PipelineMetrics {
+func Run(ctx context.Context, tick time.Duration, taskQueueSize int, shutdownGracePeriod time.Duration, taskProducer task.Producer, batchConsumer batch.Consumer, wg *sync.WaitGroup) PipelineMetrics {
 	pipelineMetrics := PipelineMetrics{
 		metrics.NewBasic("producer"),
 		metrics.NewBasic("dispatch"),
 		metrics.NewBasic("consume"),
 	}
-	taskCh, taskPermitCh := producer.Run(ctx, taskProducer, taskQueueSize, pipelineMetrics[0], wg)
+	taskCh, taskPermitCh := producer.Run(ctx, taskProducer, taskQueueSize, shutdownGracePeriod, pipelineMetrics[0], wg)
 	batchCh, batchPermitCh := dispatcher.Run(ctx, tick, taskQueueSize, taskQueueSize/2, taskCh, taskPermitCh, pipelineMetrics[1], wg)
 	consumer.Run(ctx, batchConsumer, batchCh, batchPermitCh, pipelineMetrics[2], wg)
 	reporter.Run(ctx, time.Second*5, wg, pipelineMetrics...)

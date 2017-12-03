@@ -11,8 +11,8 @@ import (
 )
 
 func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		initialPermit := permit.New(1)
 		select {
@@ -43,7 +43,7 @@ func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 					// ASK: How to make that shit idempotent:
 					// - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
 					// - have Archai by adding an operation id to each operation and a way to query Archai for its status
-					err := batchConsumer.ConsumeBatch(batch)
+					err := batchConsumer.ConsumeBatch(ctx, batch)
 					// Assumes writes are idempotent.
 					if err != nil {
 						log.Printf(colors.Red("Write error: %v (will retry)"), err)

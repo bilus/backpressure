@@ -2,6 +2,7 @@ package batch
 
 import (
 	"github.com/bilus/backpressure/pipeline/task"
+	"golang.org/x/net/context"
 )
 
 type Batch []task.Task
@@ -18,5 +19,5 @@ func (batch Batch) AddTask(task task.Task) (Batch, error) {
 }
 
 type Consumer interface {
-	ConsumeBatch(batch Batch) error
+	ConsumeBatch(ctx context.Context, batch Batch) error
 }

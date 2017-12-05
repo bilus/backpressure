@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/httputil"
+	"github.com/bilus/backpressure/pipeline"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/reporter"
 	"github.com/bilus/backpressure/pipeline/runner"
@@ -35,7 +36,10 @@ func Run(port int) {
 		log.Println(colors.Red(err))
 		return
 	}
-	metrics := runner.RunPipeline(ctx, config, TaskProducer{pushCh}, BatchConsumer{}, &wg)
+	metrics := pipeline.NewMetrics()
+	runner.RunPipeline(ctx, config, TaskProducer{pushCh}, BatchConsumer{}, metrics, &wg)
+	reporter.Run(ctx, time.Second*5, &wg, metrics...)
+
 	runner.WaitToTerminate(ctx, &wg, config.ShutdownGracePeriod)
 
 	// Print the metrics at the end.

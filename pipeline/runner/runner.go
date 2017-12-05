@@ -31,9 +31,8 @@ func DefaultConfig() Config {
 	}
 }
 
-func RunPipeline(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer, wg *sync.WaitGroup) pipeline.PipelineMetrics {
-	metrics := pipeline.Run(ctx, config.DispatchTick, config.TaskQueueSize, config.ProducerShutdownGracePeriod, taskProducer, batchConsumer, wg)
-	return metrics
+func RunPipeline(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer, metrics pipeline.PipelineMetrics, wg *sync.WaitGroup) {
+	pipeline.Run(ctx, config.DispatchTick, config.TaskQueueSize, config.ProducerShutdownGracePeriod, taskProducer, batchConsumer, metrics, wg)
 }
 
 // SetupTerminate terminates the pipeline on Ctrl+C.

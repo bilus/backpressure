@@ -10,10 +10,8 @@ go run main.go
 
 ## TODO
 
-- Pull example
-- Wait to interrupt http server
-- Wait to interrupt writing to chan in push handler
 - When Done() all messages should go through the pipeline.
+- Wait to interrupt writing to chan in push handler
 - Automated test
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.

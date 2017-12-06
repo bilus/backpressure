@@ -27,33 +27,35 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 		}
 		ticker := time.Tick(tick)
 		currentBatch := batch.New()
-		defer drainAndClose(currentBatch, batchCh)
+		defer flushAndClose(currentBatch, batchCh, metrics)
 		for {
 			select {
-			case task := <-taskCh:
-				metrics.Begin(1)
-				// TODO: Handle termination, flush current batch!
-				var err error
-				currentBatch, err = currentBatch.AddTask(task)
-				if err != nil {
-					metrics.EndWithFailure(1)
-					// Unable to buffer more tasks, drop the current one to the floor.
-					// ASK: Maybe round-robin is a better choice?
-					// Probably should use a Strategy here to make that
-					// configurable.
-					log.Printf(colors.Red("Dropping task: %v"), err)
-				} else {
-					metrics.EndWithSuccess(1)
-				}
-				if err := buckt.Drain(ctx, 1); err != nil {
-					log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
-					return
+			case task, ok := <-taskCh:
+				if ok {
+					metrics.Begin(1)
+					// TODO: Handle termination, flush current batch!
+					var err error
+					currentBatch, err = currentBatch.AddTask(task)
+					if err != nil {
+						metrics.EndWithFailure(1)
+						// Unable to buffer more tasks, drop the current one to the floor.
+						// ASK: Maybe round-robin is a better choice?
+						// Probably should use a Strategy here to make that
+						// configurable.
+						log.Printf(colors.Red("Dropping task: %v"), err)
+					} else {
+					}
+					if err := buckt.Drain(ctx, 1); err != nil {
+						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
+						return
+					}
 				}
 			case <-ticker:
 				if len(currentBatch) > 0 {
 					select {
 					case <-permitCh:
 						batchCh <- currentBatch
+						metrics.EndWithSuccess(uint64(len(currentBatch)))
 						currentBatch = batch.New()
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
@@ -72,10 +74,12 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	return batchCh, permitCh
 }
 
-func drainAndClose(currentBatch batch.Batch, batchCh chan<- batch.Batch) {
-	log.Println("Draining task chan")
+func flushAndClose(currentBatch batch.Batch, batchCh chan<- batch.Batch, metrics metrics.Metrics) {
+	log.Println("Flushing batch chan")
 	// Ignore permits, just try to push it through.
+	log.Println(currentBatch)
 	batchCh <- currentBatch
-	log.Println("Drained task chan")
+	metrics.EndWithSuccess(uint64(len(currentBatch)))
+	log.Println("Flushed batch chan")
 	close(batchCh)
 }

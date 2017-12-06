@@ -50,6 +50,7 @@ func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 
 func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) error {
 	batch, ok := <-batchCh
+	log.Println(batch)
 	if !ok {
 		return errors.New("Upstream channel closed")
 	}
@@ -68,6 +69,6 @@ func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-c
 func drain(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) {
 	log.Println("Draining batch chan")
 	// Try to drain the batch channel before exiting.
-	consumeBatch(ctx, batchConsumer, batchCh, metrics)
-	log.Println("Drained batch chan")
+	err := consumeBatch(ctx, batchConsumer, batchCh, metrics)
+	log.Printf("Drained batch chan: %v", err)
 }

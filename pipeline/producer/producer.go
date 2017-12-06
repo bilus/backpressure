@@ -36,7 +36,7 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 					// TODO: Refactor.
 					newTask, err := taskProducer.ProduceTask(ctx)
 					if err != nil {
-						if becauseDone(err) {
+						if ctx.Err() != nil {
 							log.Println(colors.Blue("Exiting producer"))
 							return
 						} else {
@@ -64,15 +64,6 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 	}()
 
 	return taskCh, permitCh
-}
-
-func becauseDone(err error) bool {
-	taskError, ok := err.(task.Error)
-	if ok && taskError.Done() {
-		return true
-	} else {
-		return false
-	}
 }
 
 func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration, metrics metrics.Metrics) <-chan error {

@@ -90,7 +90,7 @@ func (ftp TaskProducer) ProduceTask(ctx context.Context) (task.Task, error) {
 		}
 		return task, nil
 	case <-ctx.Done():
-		return nil, task.Error{"Terminating", true}
+		return nil, ctx.Err()
 	}
 }
 

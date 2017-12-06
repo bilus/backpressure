@@ -8,13 +8,13 @@ import (
 )
 
 type Bucket struct {
-	PermitCh      chan permit.Permit
+	PermitCh      chan<- permit.Permit
 	LowWaterMark  int
 	HighWaterMark int
 	WaterLevel    int
 }
 
-func New(permitCh chan permit.Permit, lowWaterMark int, highWaterMark int) Bucket {
+func New(permitCh chan<- permit.Permit, lowWaterMark int, highWaterMark int) Bucket {
 	if highWaterMark == lowWaterMark {
 		panic("HighWaterMark must be higher than lowWaterMark")
 	}

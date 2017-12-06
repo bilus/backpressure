@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh <-chan task.Task, taskPermitCh chan permit.Permit,
+func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit,
 	metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
 	batchCh := make(chan batch.Batch)
 	permitCh := make(chan permit.Permit, 1)

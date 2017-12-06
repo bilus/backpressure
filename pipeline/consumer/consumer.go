@@ -5,23 +5,27 @@ import (
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/batch"
+	"github.com/bilus/backpressure/pipeline/bucket"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"log"
 	"sync"
 )
 
+// TODO: Retries.
+// ASK: This is Archai so maybe we should keep trying forever until it gets it shit together.
+// ASK: How to make that shit idempotent:
+// - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
+// - have Archai by adding an operation id to each operation and a way to query Archai for its status
+
 func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		initialPermit := permit.New(1)
-		select {
-		case permitCh <- initialPermit:
-		case <-ctx.Done():
-			log.Println(colors.Yellow("Exiting consumer"))
+		buckt := bucket.New(permitCh, 0, 1) // Always ask for one batch if it drops to 0.
+		if err := buckt.FillUp(ctx); err != nil {
+			log.Printf(colors.Yellow("Exiting consumer: %v"), err)
 			return
 		}
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -37,31 +41,20 @@ func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 						metrics.EndWithFailure(batchSize) // TODO: Flush what's in batch!
 						return
 					}
-
-					// TODO: Retries.
-					// ASK: This is Archai so maybe we should keep trying forever until it gets it shit together.
-					// ASK: How to make that shit idempotent:
-					// - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
-					// - have Archai by adding an operation id to each operation and a way to query Archai for its status
-					err := batchConsumer.ConsumeBatch(ctx, batch)
-					// Assumes writes are idempotent.
-					if err != nil {
+					if err := batchConsumer.ConsumeBatch(ctx, batch); err != nil {
 						log.Printf(colors.Red("Write error: %v (will retry)"), err)
 						metrics.EndWithFailure(batchSize)
 					} else {
 						metrics.EndWithSuccess(batchSize)
 
 					}
-					select {
-					case permitCh <- permit.New(1):
-					case <-ctx.Done():
-						log.Println(colors.Yellow("Exiting consumer"))
+					if err := buckt.Drain(ctx, 1); err != nil {
+						log.Printf(colors.Yellow("Exiting consumer: %v"), err)
 						return
 					}
 				case <-ctx.Done():
 					log.Println(colors.Yellow("Exiting consumer"))
 					return
-
 				}
 			}
 		}

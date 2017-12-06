@@ -1,8 +1,8 @@
 package batch
 
 import (
+	"context"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 )
 
 type Batch []task.Task

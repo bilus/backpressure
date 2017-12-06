@@ -1,12 +1,12 @@
 package producer
 
 import (
+	"context"
 	"errors"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 	"log"
 	"sync"
 	"time"

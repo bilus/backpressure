@@ -1,10 +1,10 @@
 package runner
 
 import (
+	"context"
 	"github.com/bilus/backpressure/pipeline"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 	"log"
 	"os"
 	"os/signal"

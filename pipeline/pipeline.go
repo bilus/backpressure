@@ -1,13 +1,13 @@
 package pipeline
 
 import (
+	"context"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/consumer"
 	"github.com/bilus/backpressure/pipeline/dispatcher"
 	"github.com/bilus/backpressure/pipeline/producer"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 	"sync"
 	"time"
 )

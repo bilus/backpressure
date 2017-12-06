@@ -1,9 +1,9 @@
 package reporter
 
 import (
+	"context"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/olekukonko/tablewriter"
-	"golang.org/x/net/context"
 	"os"
 	"sync"
 	"time"

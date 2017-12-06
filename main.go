@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"github.com/bilus/backpressure/pipeline"
 	"github.com/bilus/backpressure/pipeline/examples/fake"
 	"github.com/bilus/backpressure/pipeline/reporter"
 	"github.com/bilus/backpressure/pipeline/runner"
-	"golang.org/x/net/context"
 	"sync"
 	"time"
 	// "runtime/trace"

@@ -1,13 +1,13 @@
 package dispatcher
 
 import (
+	"context"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/bucket"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 	"log"
 	"sync"
 	"time"

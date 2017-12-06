@@ -1,11 +1,11 @@
 package fake
 
 import (
+	"context"
 	"fmt"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 	"log"
 	"math/rand"
 	"time"

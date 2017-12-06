@@ -1,7 +1,7 @@
 package task
 
 import (
-	"golang.org/x/net/context"
+	"context"
 )
 
 type Task interface {

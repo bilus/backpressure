@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/bilus/backpressure/colors"
@@ -10,7 +11,6 @@ import (
 	"github.com/bilus/backpressure/pipeline/reporter"
 	"github.com/bilus/backpressure/pipeline/runner"
 	"github.com/bilus/backpressure/pipeline/task"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
 	"net/http"

@@ -1,8 +1,8 @@
 package httputil
 
 import (
+	"context"
 	"github.com/bilus/backpressure/colors"
-	"golang.org/x/net/context"
 	"log"
 	"net"
 	"net/http"

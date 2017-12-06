@@ -27,6 +27,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 		}
 		ticker := time.Tick(tick)
 		currentBatch := batch.New()
+		defer drainAndClose(currentBatch, batchCh)
 		for {
 			select {
 			case task := <-taskCh:
@@ -69,4 +70,12 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	}()
 
 	return batchCh, permitCh
+}
+
+func drainAndClose(currentBatch batch.Batch, batchCh chan<- batch.Batch) {
+	log.Println("Draining task chan")
+	// Ignore permits, just try to push it through.
+	batchCh <- currentBatch
+	log.Println("Drained task chan")
+	close(batchCh)
 }

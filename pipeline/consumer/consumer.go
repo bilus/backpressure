@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"errors"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/batch"
@@ -26,37 +27,47 @@ func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 			log.Printf(colors.Yellow("Exiting consumer: %v"), err)
 			return
 		}
+		defer drain(ctx, batchConsumer, batchCh, metrics)
 		for {
 			select {
 			case <-ctx.Done():
 				log.Println(colors.Yellow("Exiting consumer"))
 				return
 			default:
-				select {
-				case batch, ok := <-batchCh:
-					batchSize := uint64(len(batch))
-					metrics.Begin(batchSize)
-					if !ok {
-						log.Println(colors.Yellow("Exiting consumer"))
-						metrics.EndWithFailure(batchSize) // TODO: Flush what's in batch!
+				if err := consumeBatch(ctx, batchConsumer, batchCh, metrics); err != nil {
+					if ctx.Err() != nil {
 						return
 					}
-					if err := batchConsumer.ConsumeBatch(ctx, batch); err != nil {
-						log.Printf(colors.Red("Write error: %v (will retry)"), err)
-						metrics.EndWithFailure(batchSize)
-					} else {
-						metrics.EndWithSuccess(batchSize)
-
-					}
-					if err := buckt.Drain(ctx, 1); err != nil {
-						log.Printf(colors.Yellow("Exiting consumer: %v"), err)
-						return
-					}
-				case <-ctx.Done():
-					log.Println(colors.Yellow("Exiting consumer"))
+				}
+				if err := buckt.Drain(ctx, 1); err != nil {
+					log.Printf(colors.Yellow("Exiting consumer: %v"), err)
 					return
 				}
 			}
 		}
 	}()
+}
+
+func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) error {
+	batch, ok := <-batchCh
+	if !ok {
+		return errors.New("Upstream channel closed")
+	}
+	batchSize := uint64(len(batch))
+	metrics.Begin(batchSize)
+	if err := batchConsumer.ConsumeBatch(ctx, batch); err != nil {
+		log.Printf(colors.Red("Write error: %v (will retry)"), err)
+		metrics.EndWithFailure(batchSize)
+		return err
+	} else {
+		metrics.EndWithSuccess(batchSize)
+		return nil
+	}
+}
+
+func drain(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) {
+	log.Println("Draining batch chan")
+	// Try to drain the batch channel before exiting.
+	consumeBatch(ctx, batchConsumer, batchCh, metrics)
+	log.Println("Drained batch chan")
 }

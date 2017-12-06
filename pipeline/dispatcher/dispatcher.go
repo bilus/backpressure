@@ -28,7 +28,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 		ticker := time.Tick(tick)
 		currentBatch := batch.New()
 		currentSpan := metrics.Begin(0)
-		defer flushAndClose(currentBatch, batchCh, currentSpan)
+		defer flushAndClose(&currentBatch, batchCh, currentSpan)
 		for {
 			select {
 			case task, ok := <-taskCh:
@@ -75,12 +75,11 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	return batchCh, permitCh
 }
 
-func flushAndClose(currentBatch batch.Batch, batchCh chan<- batch.Batch, span metrics.Span) {
-	log.Println("Flushing batch chan")
+func flushAndClose(currentBatch *batch.Batch, batchCh chan<- batch.Batch, span metrics.Span) {
 	// Ignore permits, just try to push it through.
-	log.Println(currentBatch)
-	batchCh <- currentBatch
-	span.Success(uint64(len(currentBatch)))
-	log.Println("Flushed batch chan")
+	log.Println("Flushing to batch chan", len(*currentBatch))
+	batchCh <- *currentBatch
+	span.Success(uint64(len(*currentBatch)))
+	log.Println("Flushed to batch chan")
 	close(batchCh)
 }

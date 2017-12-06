@@ -27,24 +27,24 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 		}
 		ticker := time.Tick(tick)
 		currentBatch := batch.New()
-		defer flushAndClose(currentBatch, batchCh, metrics)
+		currentSpan := metrics.Begin(0)
+		defer flushAndClose(currentBatch, batchCh, currentSpan)
 		for {
 			select {
 			case task, ok := <-taskCh:
 				if ok {
-					metrics.Begin(1)
-					// TODO: Handle termination, flush current batch!
+					currentSpan.Continue(1)
 					var err error
 					currentBatch, err = currentBatch.AddTask(task)
 					if err != nil {
-						metrics.EndWithFailure(1)
+						currentSpan.Failure(1)
 						// Unable to buffer more tasks, drop the current one to the floor.
 						// ASK: Maybe round-robin is a better choice?
 						// Probably should use a Strategy here to make that
 						// configurable.
 						log.Printf(colors.Red("Dropping task: %v"), err)
-					} else {
 					}
+
 					if err := buckt.Drain(ctx, 1); err != nil {
 						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 						return
@@ -55,7 +55,8 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 					select {
 					case <-permitCh:
 						batchCh <- currentBatch
-						metrics.EndWithSuccess(uint64(len(currentBatch)))
+						currentSpan.Success(uint64(len(currentBatch)))
+						currentSpan = metrics.Begin(0)
 						currentBatch = batch.New()
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
@@ -74,12 +75,12 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	return batchCh, permitCh
 }
 
-func flushAndClose(currentBatch batch.Batch, batchCh chan<- batch.Batch, metrics metrics.Metrics) {
+func flushAndClose(currentBatch batch.Batch, batchCh chan<- batch.Batch, span metrics.Span) {
 	log.Println("Flushing batch chan")
 	// Ignore permits, just try to push it through.
 	log.Println(currentBatch)
 	batchCh <- currentBatch
-	metrics.EndWithSuccess(uint64(len(currentBatch)))
+	span.Success(uint64(len(currentBatch)))
 	log.Println("Flushed batch chan")
 	close(batchCh)
 }

@@ -37,9 +37,15 @@
   packages = ["unix"]
   revision = "316e9227019baa6ea3f76ea21538bab101fd1182"
 
+[[projects]]
+  branch = "v1"
+  name = "gopkg.in/check.v1"
+  packages = ["."]
+  revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e83aabc8e9bbe035877300c819e42e193dae9383f95daef4bf2e0acff1f676b1"
+  inputs-digest = "38c4738b11d31fc1fd8442450c8eae88593981712b92db5723be5739e6755a91"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -10,6 +10,8 @@ go run main.go
 
 ## TODO
 
+- Add Avg times to basic metrics
+  - Discrepancies in dispatcher counts
 - When Done() all messages should go through the pipeline.
   + Batch chan
   - Task chan
@@ -18,7 +20,6 @@ go run main.go
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.
 
-- RPS to basic metrics
 - DD metrics example
 - Turn into a library.
 - Pub/sub reader.

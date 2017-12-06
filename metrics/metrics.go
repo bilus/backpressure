@@ -2,7 +2,8 @@ package metrics
 
 import (
 	"fmt"
-	// "github.com/VividCortex/ewma"
+	"github.com/VividCortex/ewma"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -23,10 +24,12 @@ type BasicMetrics struct {
 	Iterations uint64
 	Successes  uint64
 	Failures   uint64
+	AvgTime    ewma.MovingAverage
+	mtx        *sync.Mutex
 }
 
 func NewBasic(sourceName string) Metrics {
-	return &BasicMetrics{sourceName, 0, 0, 0}
+	return &BasicMetrics{sourceName, 0, 0, 0, ewma.NewMovingAverage(), &sync.Mutex{}}
 }
 
 func (metric BasicMetrics) SourceName() string {
@@ -35,7 +38,8 @@ func (metric BasicMetrics) SourceName() string {
 
 func (metric *BasicMetrics) Begin(delta uint64) *BasicSpan {
 	atomic.AddUint64(&metric.Iterations, delta)
-	return &BasicSpan{time.Now(), delta, metric}
+	span := &BasicSpan{time.Now(), delta, metric}
+	return span
 }
 
 func (metric *BasicMetrics) Iterate(delta uint64) {
@@ -51,14 +55,17 @@ func (metric *BasicMetrics) EndWithFailure(delta uint64) {
 }
 
 func (metric *BasicMetrics) Labels() []string {
-	return []string{"iterations", "successes", "failures"}
+	return []string{"iterations", "successes", "failures", "avgt"}
 }
 
 func (metric *BasicMetrics) Values() []string {
+	metric.mtx.Lock()
+	defer metric.mtx.Unlock()
 	return []string{
 		fmt.Sprintf("%v", metric.Iterations),
 		fmt.Sprintf("%v", metric.Successes),
 		fmt.Sprintf("%v", metric.Failures),
+		fmt.Sprintf("%.2fs", metric.AvgTime.Value()),
 	}
 }
 
@@ -81,11 +88,31 @@ func (span *BasicSpan) Continue(delta uint64) {
 }
 
 func (span *BasicSpan) Success(delta uint64) {
+	if delta == 0 {
+		return
+	}
+	bm := span.metrics.(*BasicMetrics)
+	bm.mtx.Lock()
+	defer bm.mtx.Unlock()
 	span.metrics.EndWithSuccess(delta)
+	t := time.Now().Sub(span.start).Seconds() / float64(delta)
+	for i := uint64(0); i < delta; i++ {
+		bm.AvgTime.Add(t)
+	}
 }
 
 func (span *BasicSpan) Failure(delta uint64) {
+	if delta == 0 {
+		return
+	}
+	bm := span.metrics.(*BasicMetrics)
+	bm.mtx.Lock()
+	defer bm.mtx.Unlock()
 	span.metrics.EndWithFailure(delta)
+	t := time.Now().Sub(span.start).Seconds() / float64(delta)
+	for i := uint64(0); i < delta; i++ {
+		bm.AvgTime.Add(t)
+	}
 }
 
 func (span *BasicSpan) Close(err *error) {

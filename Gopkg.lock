@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/VividCortex/ewma"
+  packages = ["."]
+  revision = "b24eb346a94c3ba12c1da1e564dbac1b498a77ce"
+  version = "v1.1.1"
+
+[[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
   revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
@@ -46,6 +52,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "38c4738b11d31fc1fd8442450c8eae88593981712b92db5723be5739e6755a91"
+  inputs-digest = "0b75cec666c6e09e15cc15bf0c3f58ca09ee44eb163017f3af6c48f5b9debb6f"
   solver-name = "gps-cdcl"
   solver-version = 1

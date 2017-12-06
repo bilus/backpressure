@@ -18,6 +18,7 @@ import (
 // - generate ids for each data point and on suspected failure, ask Archai if it's there 😼
 // - have Archai by adding an operation id to each operation and a way to query Archai for its status
 
+// As far as metrics are concerned, it tracks the average time it takes to consume a task.
 func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
@@ -50,7 +51,6 @@ func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 
 func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) (err error) {
 	batch, ok := <-batchCh
-	log.Println(batch)
 	if !ok {
 		return errors.New("Upstream channel closed")
 	}

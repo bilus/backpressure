@@ -34,6 +34,7 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 				remaining := permit.SizeHint
 				for remaining > 0 {
 					// TODO: Refactor.
+					span := metrics.Begin(0) // Start measuring time but no task yet.
 					newTask, err := taskProducer.ProduceTask(ctx)
 					if err != nil {
 						if ctx.Err() != nil {
@@ -43,16 +44,15 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 							log.Println(colors.Red("Error producing task: %v"), err)
 						}
 					} else {
-						select {
-						case err := <-queueTask(ctx, taskCh, newTask, shutdownGracePeriod, metrics):
-							if err != nil {
-								log.Println(colors.Red("Error queuing task: %v"), err)
-							} else {
-								remaining--
+						span.Continue(1) // We have a task.
+						if err := queueTask(ctx, taskCh, newTask, shutdownGracePeriod, span); err != nil {
+							log.Printf(colors.Red("Error queuing task: %v"), err)
+							if ctx.Err() != nil {
+								log.Println(colors.Blue("Exiting producer"))
+								return
 							}
-						case <-ctx.Done():
-							log.Println(colors.Blue("Exiting producer"))
-							return
+						} else {
+							remaining--
 						}
 					}
 				}
@@ -66,25 +66,20 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 	return taskCh, permitCh
 }
 
-func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration, metrics metrics.Metrics) <-chan error {
-	errCh := make(chan error, 1)
+func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration, span metrics.Span) (err error) {
+	defer span.Close(&err)
 	log.Printf(colors.Blue("=> Sending %v"), task)
-	metrics.Begin(1)
 	select {
 	case taskCh <- task:
-		metrics.EndWithSuccess(1)
-		errCh <- nil
+		return nil
 	case <-ctx.Done():
 		log.Printf(colors.Blue("=> Sending %v (last orders, please)"), task)
 		select {
 		// Last desperate attempt.
 		case taskCh <- task:
-			metrics.EndWithSuccess(1)
-			errCh <- nil
+			return ctx.Err()
 		case <-time.After(gracePeriod):
-			metrics.EndWithFailure(1)
-			errCh <- errors.New("Timeout during shutdown")
+			return errors.New("Timeout during shutdown")
 		}
 	}
-	return errCh
 }

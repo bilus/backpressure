@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// As far as metrics are concerned, it tracks avg time between completion of dispatches divided in the number of tasks in a batch.
 func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit,
 	metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
 	batchCh := make(chan batch.Batch)

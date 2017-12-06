@@ -4,6 +4,7 @@ import (
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/batch"
+	"github.com/bilus/backpressure/pipeline/bucket"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/task"
 	"golang.org/x/net/context"
@@ -14,23 +15,16 @@ import (
 
 func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMark int, taskCh <-chan task.Task, taskPermitCh chan permit.Permit,
 	metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
-	if highWaterMark == lowWaterMark {
-		panic("Dispatch highWaterMark must be higher than lowWaterMark")
-	}
 	batchCh := make(chan batch.Batch)
 	permitCh := make(chan permit.Permit, 1)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		initialPermit := permit.New(highWaterMark)
-		log.Printf(colors.Magenta("Sending permit: %v"), initialPermit)
-		select {
-		case taskPermitCh <- initialPermit:
-		case <-ctx.Done():
-			log.Println(colors.Magenta("Exiting dispatcher"))
+		buckt := bucket.New(taskPermitCh, lowWaterMark, highWaterMark)
+		if err := buckt.FillUp(ctx); err != nil {
+			log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 			return
 		}
-		waterLevel := initialPermit.SizeHint
 		ticker := time.Tick(tick)
 		currentBatch := batch.New()
 		for {
@@ -50,17 +44,9 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 				} else {
 					metrics.EndWithSuccess(1)
 				}
-				waterLevel -= 1
-				if waterLevel <= lowWaterMark {
-					newPermit := permit.New(highWaterMark - waterLevel)
-					log.Printf(colors.Magenta("Sending permit: %v"), newPermit)
-					select {
-					case taskPermitCh <- newPermit:
-						waterLevel = highWaterMark
-					case <-ctx.Done():
-						log.Println(colors.Magenta("Exiting dispatcher"))
-						return
-					}
+				if err := buckt.Drain(ctx, 1); err != nil {
+					log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
+					return
 				}
 			case <-ticker:
 				if len(currentBatch) > 0 {

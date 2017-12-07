@@ -58,7 +58,7 @@ func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-c
 	span := metrics.Begin(batchSize)
 	defer span.Close(&err)
 	if err := batchConsumer.ConsumeBatch(ctx, batch); err != nil {
-		log.Printf(colors.Red("Write error: %v (will retry)"), err)
+		log.Printf(colors.Red("Consume error: %v (will retry)"), err)
 		return err
 	} else {
 		return nil

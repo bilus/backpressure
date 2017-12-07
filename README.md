@@ -11,6 +11,11 @@ go run main.go
 ## TODO
 
 - Automated test
+  + producer
+  - consumer
+  - bucket
+  - dispatcher
+  - pipeline
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.
 

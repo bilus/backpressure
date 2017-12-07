@@ -10,7 +10,6 @@ go run main.go
 
 ## TODO
 
-- Wait to interrupt writing to chan in push handler
 - Automated test
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.

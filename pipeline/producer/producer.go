@@ -2,7 +2,6 @@ package producer
 
 import (
 	"context"
-	"errors"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/permit"
@@ -31,31 +30,7 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 			select {
 			case permit := <-permitCh:
 				log.Printf(colors.Blue("Got permit: %v"), permit)
-				remaining := permit.SizeHint
-				for remaining > 0 {
-					// TODO: Refactor.
-					span := metrics.Begin(0) // Start measuring time but no task yet.
-					newTask, err := taskProducer.ProduceTask(ctx)
-					if err != nil {
-						if ctx.Err() != nil {
-							log.Println(colors.Blue("Exiting producer"))
-							return
-						} else {
-							log.Println(colors.Red("Error producing task: %v"), err)
-						}
-					} else {
-						span.Continue(1) // We have a task.
-						if err := queueTask(ctx, taskCh, newTask, shutdownGracePeriod, span); err != nil {
-							log.Printf(colors.Red("Error queuing task: %v"), err)
-						} else {
-							remaining--
-						}
-						if ctx.Err() != nil {
-							log.Println(colors.Blue("Exiting producer"))
-							return
-						}
-					}
-				}
+				produceWithinQuota(ctx, permit, taskProducer, taskCh, shutdownGracePeriod, metrics)
 			case <-ctx.Done():
 				log.Println(colors.Blue("Exiting producer"))
 				return
@@ -66,9 +41,33 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 	return taskCh, permitCh
 }
 
-func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration, span metrics.Span) (err error) {
-	defer span.Close(&err)
+func produceWithinQuota(ctx context.Context, permit permit.Permit, taskProducer task.Producer, taskCh chan<- task.Task, shutdownGracePeriod time.Duration, metrics metrics.Metrics) (err error) {
+	remaining := permit.SizeHint
+	for remaining > 0 {
+		span := metrics.Begin(0) // Start measuring time but no task yet.
+		defer span.Close(&err)
+		var newTask task.Task
+		newTask, err = taskProducer.ProduceTask(ctx)
+		if err == nil {
+			span.Continue(1) // We have a task.
+			err = queueTask(ctx, taskCh, newTask, shutdownGracePeriod)
+		}
+		if err == nil {
+			remaining--
+		}
+		if ctx.Err() != nil {
+			log.Printf(colors.Blue("Exiting producer: %v"), ctx.Err())
+			return err
+		} else if err != nil {
+			log.Printf(colors.Red("Error producing task: %v"), err) // TODO: Will retry producing indefinitely.
+		}
+	}
+	return nil
+}
+
+func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration) error {
 	log.Printf(colors.Blue("=> Sending %v"), task)
+	// TODO: Unsure if this elaborate timeout is necessary; the pipeline will be terminated after the grace period anyway.
 	select {
 	case taskCh <- task:
 		return nil
@@ -79,7 +78,7 @@ func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gra
 		case taskCh <- task:
 			return nil
 		case <-time.After(gracePeriod):
-			return errors.New("Timeout during shutdown")
+			return ctx.Err()
 		}
 	}
 }

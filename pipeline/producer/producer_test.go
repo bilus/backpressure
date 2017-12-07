@@ -3,12 +3,11 @@ package producer_test
 import (
 	"context"
 	"errors"
-	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/producer"
 	"github.com/bilus/backpressure/pipeline/task"
+	"github.com/bilus/backpressure/test/async"
 	. "gopkg.in/check.v1"
-	"sync"
 	"testing"
 	"time"
 )
@@ -16,10 +15,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type MySuite struct {
-	wg      sync.WaitGroup
-	ctx     context.Context
-	cancel  context.CancelFunc
-	metrics *metrics.BasicMetrics
+	async.Suite
 }
 
 var _ = Suite(&MySuite{})
@@ -52,35 +48,21 @@ type SomeTask struct {
 
 func (_ SomeTask) TaskTypeTag() {}
 
-func (s *MySuite) SetUpTest(c *C) {
-	s.wg = sync.WaitGroup{}
-	s.metrics = metrics.NewBasic("producer")
-}
-
-func (s *MySuite) TearDownTest(c *C) {
-	c.Assert(s.metrics.Iterations, Equals, s.metrics.Successes+s.metrics.Failures)
-}
-
-func (s *MySuite) WithTimeout(d time.Duration) context.CancelFunc {
-	s.ctx, s.cancel = context.WithTimeout(context.Background(), d)
-	return s.cancel
-}
-
 func (s *MySuite) TestDoesNotProduceWithoutPermit(c *C) {
 	defer s.WithTimeout(time.Microsecond * 30)()
-	producer.Run(s.ctx, &InfiniteProducer{}, 32, 0, s.metrics, &s.wg)
-	s.wg.Wait()
-	c.Assert(s.metrics.Iterations, Equals, uint64(0))
+	producer.Run(s.Ctx, &InfiniteProducer{}, 32, 0, s.Metrics, &s.Wg)
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(0))
 }
 
 func (s *MySuite) TestFullfillsQuotaInPermit(c *C) {
 	defer s.WithTimeout(time.Microsecond * 500)()
-	taskCh, permitCh := producer.Run(s.ctx, &InfiniteProducer{}, 32, 0, s.metrics, &s.wg)
+	taskCh, permitCh := producer.Run(s.Ctx, &InfiniteProducer{}, 32, 0, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
-	s.wg.Wait()
-	c.Assert(s.metrics.Iterations, Equals, uint64(4))
-	c.Assert(s.metrics.Successes, Equals, uint64(4))
-	c.Assert(s.metrics.Failures, Equals, uint64(0))
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(4))
+	c.Assert(s.Metrics.Successes, Equals, uint64(4))
+	c.Assert(s.Metrics.Failures, Equals, uint64(0))
 	c.Assert(<-taskCh, Equals, SomeTask{1})
 	c.Assert(<-taskCh, Equals, SomeTask{2})
 	c.Assert(<-taskCh, Equals, SomeTask{3})
@@ -89,9 +71,9 @@ func (s *MySuite) TestFullfillsQuotaInPermit(c *C) {
 
 func (s *MySuite) TestClosesTaskChanWhenTerminated(c *C) {
 	defer s.WithTimeout(time.Microsecond * 500)()
-	taskCh, permitCh := producer.Run(s.ctx, &InfiniteProducer{}, 32, 0, s.metrics, &s.wg)
+	taskCh, permitCh := producer.Run(s.Ctx, &InfiniteProducer{}, 32, 0, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
-	s.wg.Wait()
+	s.Wg.Wait()
 	for i := 0; i < 4; i++ {
 		_, ok := <-taskCh
 		c.Assert(ok, Equals, true)
@@ -102,12 +84,12 @@ func (s *MySuite) TestClosesTaskChanWhenTerminated(c *C) {
 
 func (s *MySuite) TestFailuresProducingTasksExceptFirst(c *C) {
 	defer s.WithTimeout(time.Microsecond * 100)()
-	taskCh, permitCh := producer.Run(s.ctx, &FailingProducer{failSinceId: 2}, 1, 0, s.metrics, &s.wg)
+	taskCh, permitCh := producer.Run(s.Ctx, &FailingProducer{failSinceId: 2}, 1, 0, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
-	s.wg.Wait()
-	c.Assert(s.metrics.Iterations, Equals, uint64(1))
-	c.Assert(s.metrics.Successes, Equals, uint64(1))
-	c.Assert(s.metrics.Failures, Equals, uint64(0))
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(1))
+	c.Assert(s.Metrics.Successes, Equals, uint64(1))
+	c.Assert(s.Metrics.Failures, Equals, uint64(0))
 	c.Assert(<-taskCh, Equals, SomeTask{1})
 	_, ok := <-taskCh
 	c.Assert(ok, Equals, false)
@@ -119,12 +101,12 @@ func (s *MySuite) TestFailureAfterProducing(c *C) {
 	// to taskCh. After context is cancelled, it will report a failure because a task has been produced
 	// but it cannot be queued and is thus lost.
 	defer s.WithTimeout(time.Microsecond * 100)()
-	taskCh, permitCh := producer.Run(s.ctx, &InfiniteProducer{}, 0, 0, s.metrics, &s.wg)
+	taskCh, permitCh := producer.Run(s.Ctx, &InfiniteProducer{}, 0, 0, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
-	s.wg.Wait()
-	c.Assert(s.metrics.Iterations, Equals, uint64(1))
-	c.Assert(s.metrics.Successes, Equals, uint64(0))
-	c.Assert(s.metrics.Failures, Equals, uint64(1))
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(1))
+	c.Assert(s.Metrics.Successes, Equals, uint64(0))
+	c.Assert(s.Metrics.Failures, Equals, uint64(1))
 	_, ok := <-taskCh
 	c.Assert(ok, Equals, false)
 }

@@ -10,7 +10,7 @@ import (
 
 type Metrics interface {
 	SourceName() string
-	Begin(delta uint64) *BasicSpan
+	Begin(delta uint64) Span
 	Iterate(delta uint64)
 	EndWithSuccess(delta uint64)
 	EndWithFailure(delta uint64)
@@ -36,10 +36,10 @@ func (metric BasicMetrics) SourceName() string {
 	return metric.sourceName
 }
 
-func (metric *BasicMetrics) Begin(delta uint64) *BasicSpan {
+func (metric *BasicMetrics) Begin(delta uint64) Span {
 	atomic.AddUint64(&metric.Iterations, delta)
-	span := &BasicSpan{time.Now(), delta, metric}
-	return span
+	span := BasicSpan{time.Now(), delta, metric}
+	return &span
 }
 
 func (metric *BasicMetrics) Iterate(delta uint64) {

@@ -29,23 +29,12 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 		ticker := time.Tick(tick)
 		currentBatch := batch.New()
 		currentSpan := metrics.Begin(0)
-		defer flushAndClose(&currentBatch, batchCh, currentSpan)
+		defer drainAndClose(&currentBatch, taskCh, batchCh, currentSpan, metrics)
 		for {
 			select {
 			case task, ok := <-taskCh:
 				if ok {
-					currentSpan.Continue(1)
-					var err error
-					currentBatch, err = currentBatch.AddTask(task)
-					if err != nil {
-						currentSpan.Failure(1)
-						// Unable to buffer more tasks, drop the current one to the floor.
-						// ASK: Maybe round-robin is a better choice?
-						// Probably should use a Strategy here to make that
-						// configurable.
-						log.Printf(colors.Red("Dropping task: %v"), err)
-					}
-
+					currentBatch = collect(task, currentBatch, currentSpan)
 					if err := buckt.Drain(ctx, 1); err != nil {
 						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 						return
@@ -55,10 +44,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 				if len(currentBatch) > 0 {
 					select {
 					case <-permitCh:
-						batchCh <- currentBatch
-						currentSpan.Success(uint64(len(currentBatch)))
-						currentSpan = metrics.Begin(0)
-						currentBatch = batch.New()
+						currentBatch, currentSpan = flush(currentBatch, batchCh, currentSpan, metrics)
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
 						return
@@ -76,11 +62,42 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	return batchCh, permitCh
 }
 
-func flushAndClose(currentBatch *batch.Batch, batchCh chan<- batch.Batch, span metrics.Span) {
+func collect(task task.Task, currentBatch batch.Batch, currentSpan metrics.Span) batch.Batch {
+	currentSpan.Continue(1)
+	var err error
+	currentBatch, err = currentBatch.AddTask(task)
+	if err != nil {
+		currentSpan.Failure(1)
+		// Unable to buffer more tasks, drop the current one to the floor.
+		// ASK: Maybe round-robin is a better choice?
+		// Probably should use a Strategy here to make that
+		// configurable.
+		log.Printf(colors.Red("Dropping task: %v"), err)
+	}
+	return currentBatch
+}
+
+func flush(currentBatch batch.Batch, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) (batch.Batch, metrics.Span) {
+	log.Println("Flushing to batch chan", len(currentBatch))
+	batchCh <- currentBatch
+	currentSpan.Success(uint64(len(currentBatch)))
+	newSpan := metrics.Begin(0)
+	newBatch := batch.New()
+	return newBatch, newSpan
+}
+
+func drainAndClose(currentBatch *batch.Batch, taskCh <-chan task.Task, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) {
+	log.Println("Draining task chan")
+	completeBatch := *currentBatch
+	for {
+		task, ok := <-taskCh
+		if ok {
+			completeBatch = collect(task, completeBatch, currentSpan)
+		} else {
+			break
+		}
+	}
 	// Ignore permits, just try to push it through.
-	log.Println("Flushing to batch chan", len(*currentBatch))
-	batchCh <- *currentBatch
-	span.Success(uint64(len(*currentBatch)))
-	log.Println("Flushed to batch chan")
+	flush(completeBatch, batchCh, currentSpan, metrics)
 	close(batchCh)
 }

@@ -47,12 +47,12 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 						span.Continue(1) // We have a task.
 						if err := queueTask(ctx, taskCh, newTask, shutdownGracePeriod, span); err != nil {
 							log.Printf(colors.Red("Error queuing task: %v"), err)
-							if ctx.Err() != nil {
-								log.Println(colors.Blue("Exiting producer"))
-								return
-							}
 						} else {
 							remaining--
+						}
+						if ctx.Err() != nil {
+							log.Println(colors.Blue("Exiting producer"))
+							return
 						}
 					}
 				}
@@ -77,7 +77,7 @@ func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gra
 		select {
 		// Last desperate attempt.
 		case taskCh <- task:
-			return ctx.Err()
+			return nil
 		case <-time.After(gracePeriod):
 			return errors.New("Timeout during shutdown")
 		}

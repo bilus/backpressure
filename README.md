@@ -10,11 +10,6 @@ go run main.go
 
 ## TODO
 
-- Add Avg times to basic metrics
-  - Discrepancies in dispatcher counts
-- When Done() all messages should go through the pipeline.
-  + Batch chan
-  - Task chan
 - Wait to interrupt writing to chan in push handler
 - Automated test
 - Make PipelineMetrics a map => metrics.PipelineMetrics.

@@ -25,7 +25,7 @@ func DefaultConfig() Config {
 	return Config{
 		DispatchTick:                time.Millisecond * 100,
 		ExecutionTimeLimit:          0, // No limit.
-		ShutdownGracePeriod:         time.Second * 10,
+		ShutdownGracePeriod:         time.Second * 30,
 		ProducerShutdownGracePeriod: time.Second * 3,
 		TaskQueueSize:               32,
 	}

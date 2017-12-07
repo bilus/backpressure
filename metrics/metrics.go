@@ -28,7 +28,7 @@ type BasicMetrics struct {
 	mtx        *sync.Mutex
 }
 
-func NewBasic(sourceName string) Metrics {
+func NewBasic(sourceName string) *BasicMetrics {
 	return &BasicMetrics{sourceName, 0, 0, 0, ewma.NewMovingAverage(), &sync.Mutex{}}
 }
 

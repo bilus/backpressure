@@ -44,14 +44,7 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 func produceWithinQuota(ctx context.Context, permit permit.Permit, taskProducer task.Producer, taskCh chan<- task.Task, shutdownGracePeriod time.Duration, metrics metrics.Metrics) (err error) {
 	remaining := permit.SizeHint
 	for remaining > 0 {
-		span := metrics.Begin(0) // Start measuring time but no task yet.
-		defer span.Close(&err)
-		var newTask task.Task
-		newTask, err = taskProducer.ProduceTask(ctx)
-		if err == nil {
-			span.Continue(1) // We have a task.
-			err = queueTask(ctx, taskCh, newTask, shutdownGracePeriod)
-		}
+		err = produceTask(ctx, taskProducer, taskCh, shutdownGracePeriod, metrics)
 		if err == nil {
 			remaining--
 		}
@@ -63,6 +56,18 @@ func produceWithinQuota(ctx context.Context, permit permit.Permit, taskProducer 
 		}
 	}
 	return nil
+}
+
+func produceTask(ctx context.Context, taskProducer task.Producer, taskCh chan<- task.Task, gracePeriod time.Duration, metrics metrics.Metrics) (err error) {
+	span := metrics.Begin(0) // Start measuring time but no task yet.
+	defer span.Close(&err)
+	var newTask task.Task
+	newTask, err = taskProducer.ProduceTask(ctx)
+	if err == nil {
+		span.Continue(1) // We have a task.
+		err = queueTask(ctx, taskCh, newTask, gracePeriod)
+	}
+	return err
 }
 
 func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration) error {

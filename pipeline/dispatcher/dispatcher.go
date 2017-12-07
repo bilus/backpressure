@@ -34,7 +34,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 			select {
 			case task, ok := <-taskCh:
 				if ok {
-					currentBatch = collect(task, currentBatch, currentSpan)
+					currentBatch = bufferTask(task, currentBatch, currentSpan)
 					if err := buckt.Drain(ctx, 1); err != nil {
 						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 						return
@@ -44,7 +44,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 				if len(currentBatch) > 0 {
 					select {
 					case <-permitCh:
-						currentBatch, currentSpan = flush(currentBatch, batchCh, currentSpan, metrics)
+						currentBatch, currentSpan = flushBuffer(currentBatch, batchCh, currentSpan, metrics)
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
 						return
@@ -62,7 +62,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 	return batchCh, permitCh
 }
 
-func collect(task task.Task, currentBatch batch.Batch, currentSpan metrics.Span) batch.Batch {
+func bufferTask(task task.Task, currentBatch batch.Batch, currentSpan metrics.Span) batch.Batch {
 	currentSpan.Continue(1)
 	var err error
 	currentBatch, err = currentBatch.AddTask(task)
@@ -77,7 +77,7 @@ func collect(task task.Task, currentBatch batch.Batch, currentSpan metrics.Span)
 	return currentBatch
 }
 
-func flush(currentBatch batch.Batch, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) (batch.Batch, metrics.Span) {
+func flushBuffer(currentBatch batch.Batch, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) (batch.Batch, metrics.Span) {
 	log.Println("Flushing to batch chan", len(currentBatch))
 	batchCh <- currentBatch
 	currentSpan.Success(uint64(len(currentBatch)))
@@ -92,12 +92,12 @@ func drainAndClose(currentBatch *batch.Batch, taskCh <-chan task.Task, batchCh c
 	for {
 		task, ok := <-taskCh
 		if ok {
-			completeBatch = collect(task, completeBatch, currentSpan)
+			completeBatch = bufferTask(task, completeBatch, currentSpan)
 		} else {
 			break
 		}
 	}
 	// Ignore permits, just try to push it through.
-	flush(completeBatch, batchCh, currentSpan, metrics)
+	flushBuffer(completeBatch, batchCh, currentSpan, metrics)
 	close(batchCh)
 }

@@ -26,7 +26,8 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 			log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 			return
 		}
-		ticker := time.Tick(tick)
+		ticker := time.NewTicker(tick)
+		defer ticker.Stop()
 		currentBatch := batch.New()
 		currentSpan := metrics.Begin(0)
 		defer drainAndClose(&currentBatch, taskCh, batchCh, currentSpan, metrics)
@@ -40,7 +41,7 @@ func Run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 						return
 					}
 				}
-			case <-ticker:
+			case <-ticker.C:
 				if len(currentBatch) > 0 {
 					select {
 					case <-permitCh:

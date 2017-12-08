@@ -13,7 +13,7 @@ go run main.go
 - Automated test
   + producer
   + consumer
-  - bucket
+  + bucket
   - dispatcher
   - pipeline
 - Structured logging https://github.com/sirupsen/logrus

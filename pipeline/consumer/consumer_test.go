@@ -39,10 +39,22 @@ func (cc *CollectingConsumer) ConsumeBatch(ctx context.Context, batch batch.Batc
 	return nil
 }
 
-type FailingConsumer struct{}
+type FailingConsumer struct {
+	Err error
+}
 
-func (cc *FailingConsumer) ConsumeBatch(ctx context.Context, batch batch.Batch) error {
-	return errors.New("Ooops!")
+func (fc *FailingConsumer) ConsumeBatch(ctx context.Context, batch batch.Batch) error {
+	return fc.Err
+}
+
+type TerminatingConsumer struct {
+	Cancel context.CancelFunc
+}
+
+func (fc *TerminatingConsumer) ConsumeBatch(ctx context.Context, batch batch.Batch) error {
+	fc.Cancel()
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func (s *MySuite) SetUpTest(c *C) {
@@ -80,7 +92,7 @@ func (s *MySuite) TestProcessesPermittedBatchUntilClosed(c *C) {
 }
 
 func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
-	defer s.WithTimeout(time.Microsecond * 200)()
+	defer s.WithTimeout(time.Microsecond * 300)()
 	cc := CollectingConsumer{}
 	consumer.Run(s.Ctx, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
@@ -103,7 +115,7 @@ func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
 
 func (s *MySuite) TestConsumerFailure(c *C) {
 	defer s.WithTimeout(time.Microsecond * 300)()
-	consumer.Run(s.Ctx, &FailingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Run(s.Ctx, &FailingConsumer{errors.New("Ooops!")}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{SomeTask{1}, SomeTask{2}}
 	close(s.BatchCh)
@@ -111,4 +123,41 @@ func (s *MySuite) TestConsumerFailure(c *C) {
 	c.Assert(s.Metrics.Iterations, Equals, uint64(2))
 	c.Assert(s.Metrics.Successes, Equals, uint64(0))
 	c.Assert(s.Metrics.Failures, Equals, uint64(2))
+}
+
+func (s *MySuite) TestConsumerTerminatesWhileProducing(c *C) {
+	defer s.WithTimeout(time.Microsecond * 300)()
+	consumer.Run(s.Ctx, &TerminatingConsumer{s.Cancel}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	<-s.PermitCh
+	s.BatchCh <- batch.Batch{SomeTask{1}, SomeTask{2}}
+	close(s.BatchCh)
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(2))
+	c.Assert(s.Metrics.Successes, Equals, uint64(0))
+	c.Assert(s.Metrics.Failures, Equals, uint64(2))
+}
+
+func (s *MySuite) TestConsumerTerminatesWhileWaitingForBatch(c *C) {
+	defer s.WithTimeout(time.Microsecond * 300)()
+	consumer.Run(s.Ctx, &CollectingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	<-s.PermitCh
+	s.Cancel()
+	time.Sleep(time.Microsecond * 10) // Race cond between Cancel and close.
+	close(s.BatchCh)
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(0))
+	c.Assert(s.Metrics.Successes, Equals, uint64(0))
+	c.Assert(s.Metrics.Failures, Equals, uint64(0))
+}
+
+func (s *MySuite) TestConsumerTerminatesWhileSendingPermit(c *C) {
+	s.PermitCh = make(chan permit.Permit) // no buffer so consumer blocks
+	defer s.WithTimeout(time.Microsecond * 300)()
+	consumer.Run(s.Ctx, &CollectingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	s.Cancel()
+	close(s.BatchCh)
+	s.Wg.Wait()
+	c.Assert(s.Metrics.Iterations, Equals, uint64(0))
+	c.Assert(s.Metrics.Successes, Equals, uint64(0))
+	c.Assert(s.Metrics.Failures, Equals, uint64(0))
 }

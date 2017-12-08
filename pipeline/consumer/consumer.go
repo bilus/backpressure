@@ -30,30 +30,33 @@ func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 		}
 		defer drain(ctx, batchConsumer, batchCh, metrics)
 		for {
-			select {
-			case <-ctx.Done():
-				log.Println(colors.Yellow("Exiting consumer"))
-				return
-			default:
-				if err := consumeBatch(ctx, batchConsumer, batchCh, metrics); err != nil {
-					if ctx.Err() != nil {
-						return
-					}
-				}
-				if err := buckt.Drain(ctx, 1); err != nil {
-					log.Printf(colors.Yellow("Exiting consumer: %v"), err)
+			if err := pullBatch(ctx, batchConsumer, batchCh, metrics); err != nil {
+				if ctx.Err() != nil {
+					log.Println(colors.Yellow("Exiting consumer"))
 					return
 				}
+			}
+			if err := buckt.Drain(ctx, 1); err != nil {
+				log.Printf(colors.Yellow("Exiting consumer: %v"), err)
+				return
 			}
 		}
 	}()
 }
 
-func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) (err error) {
-	batch, ok := <-batchCh
-	if !ok {
-		return errors.New("Upstream channel closed")
+func pullBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) error {
+	select {
+	case batch, ok := <-batchCh:
+		if !ok {
+			return errors.New("Upstream channel closed")
+		}
+		return consumeBatch(ctx, batch, batchConsumer, metrics)
+	case <-ctx.Done():
+		return ctx.Err()
 	}
+}
+
+func consumeBatch(ctx context.Context, batch batch.Batch, batchConsumer batch.Consumer, metrics metrics.Metrics) (err error) {
 	batchSize := uint64(len(batch))
 	span := metrics.Begin(batchSize)
 	defer span.Close(&err)
@@ -68,6 +71,11 @@ func consumeBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-c
 func drain(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) {
 	log.Println("Draining batch chan")
 	// Try to drain the batch channel before exiting.
-	err := consumeBatch(ctx, batchConsumer, batchCh, metrics)
-	log.Printf("Drained batch chan: %v", err)
+	batch, ok := <-batchCh
+	if ok {
+		err := consumeBatch(ctx, batch, batchConsumer, metrics)
+		log.Printf("Drained batch chan: %v", err)
+	} else {
+		log.Println("Drained batch chan: empty")
+	}
 }

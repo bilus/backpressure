@@ -37,7 +37,6 @@ func ListenAndServeWithContext(ctx context.Context, addr string, handler http.Ha
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		log.Println("1")
 		listener.Close()
 	}()
 

@@ -3,6 +3,7 @@ package async
 import (
 	"context"
 	"github.com/bilus/backpressure/metrics"
+	"github.com/bilus/backpressure/pipeline/permit"
 	check "gopkg.in/check.v1"
 	"sync"
 	"time"
@@ -27,4 +28,13 @@ func (s *Suite) TearDownTest(c *check.C) {
 func (s *Suite) WithTimeout(d time.Duration) context.CancelFunc {
 	s.Ctx, s.Cancel = context.WithTimeout(context.Background(), d)
 	return s.Cancel
+}
+
+func FetchPermit(permitCh <-chan permit.Permit) *permit.Permit {
+	select {
+	case permit := <-permitCh:
+		return &permit
+	default:
+		return nil
+	}
 }

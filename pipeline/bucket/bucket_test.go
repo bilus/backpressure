@@ -4,21 +4,13 @@ import (
 	"context"
 	"github.com/bilus/backpressure/pipeline/bucket"
 	"github.com/bilus/backpressure/pipeline/permit"
+	"github.com/bilus/backpressure/test/async"
 	. "gopkg.in/check.v1"
 	"testing"
 	"time"
 )
 
 var _ = time.Now
-
-func FetchPermit(permitCh <-chan permit.Permit) *permit.Permit {
-	select {
-	case permit := <-permitCh:
-		return &permit
-	default:
-		return nil
-	}
-}
 
 func Test(t *testing.T) { TestingT(t) }
 
@@ -58,7 +50,7 @@ func (s *MySuite) TestDrainAboveLowWaterMark(c *C) {
 	<-s.PermitChan
 	s.Bucket.Drain(s.Ctx, 1)
 	c.Assert(s.Bucket.WaterLevel, Equals, s.HWM-1)
-	c.Assert(FetchPermit(s.PermitChan), IsNil)
+	c.Assert(async.FetchPermit(s.PermitChan), IsNil)
 }
 
 func (s *MySuite) TestDrainBelowLowWaterMark(c *C) {

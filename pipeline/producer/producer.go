@@ -26,7 +26,7 @@ func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 		defer wg.Done()
 		defer close(taskCh)
 		for {
-			log.Printf(colors.Blue("Obtaining permit..."))
+			log.Println(colors.Blue("Obtaining permit..."))
 			select {
 			case permit := <-permitCh:
 				log.Printf(colors.Blue("Got permit: %v"), permit)

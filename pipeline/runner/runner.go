@@ -42,12 +42,9 @@ func SetupTermination(ctx context.Context) context.Context {
 	signal.Notify(signalsCh, syscall.SIGINT)
 	// We won't ever wait for this one.
 	go func() {
-		select {
-		case <-signalsCh:
-			log.Println("Terminating...")
-			cancel()
-		}
-
+		<-signalsCh
+		log.Println("Terminating...")
+		cancel()
 	}()
 	return ctx
 }

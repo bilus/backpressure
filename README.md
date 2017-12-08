@@ -17,16 +17,14 @@ go run main.go
   - dispatcher
   - pipeline
 - Structured logging https://github.com/sirupsen/logrus
-- Use defer for permits.
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.
+- Run -> Go
+- Limit batch size -- use interface for batch buffering.
 
 - DD metrics example
-- Turn into a library.
-- Pub/sub reader.
-- Archai writer.
 
 - User-defined backpressure strategy for dispatch
-- Measure idle consumer time
+- Use defer for permits.
 - Retries
 - Some simple recovery of lost permits(s) to prevent deadlocks.

@@ -14,7 +14,7 @@ go run main.go
   + producer
   + consumer
   + bucket
-  - dispatcher
+  + dispatcher
   - pipeline
 - Structured logging https://github.com/sirupsen/logrus
 - Make PipelineMetrics a map => metrics.PipelineMetrics.

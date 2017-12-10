@@ -3,6 +3,7 @@ package async
 import (
 	"context"
 	"github.com/bilus/backpressure/metrics"
+	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/permit"
 	check "gopkg.in/check.v1"
 	"sync"
@@ -34,6 +35,15 @@ func FetchPermit(permitCh <-chan permit.Permit) *permit.Permit {
 	select {
 	case permit := <-permitCh:
 		return &permit
+	default:
+		return nil
+	}
+}
+
+func FetchBatch(batchCh <-chan batch.Batch) *batch.Batch {
+	select {
+	case batch := <-batchCh:
+		return &batch
 	default:
 		return nil
 	}

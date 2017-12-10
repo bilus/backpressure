@@ -24,6 +24,6 @@ func NewMetrics() PipelineMetrics {
 
 func Run(ctx context.Context, tick time.Duration, taskQueueSize int, shutdownGracePeriod time.Duration, taskProducer task.Producer, batchConsumer batch.Consumer, pipelineMetrics PipelineMetrics, wg *sync.WaitGroup) {
 	taskCh, taskPermitCh := producer.Run(ctx, taskProducer, taskQueueSize, shutdownGracePeriod, pipelineMetrics[0], wg)
-	batchCh, batchPermitCh := dispatcher.Run(ctx, tick, taskQueueSize, taskQueueSize/2, taskCh, taskPermitCh, pipelineMetrics[1], wg)
+	batchCh, batchPermitCh := dispatcher.Go(ctx, tick, taskQueueSize, taskQueueSize/2, taskCh, taskPermitCh, pipelineMetrics[1], wg)
 	consumer.Run(ctx, batchConsumer, batchCh, batchPermitCh, pipelineMetrics[2], wg)
 }

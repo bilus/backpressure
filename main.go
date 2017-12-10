@@ -15,8 +15,8 @@ func main() {
 	// trace.Start(os.Stdout)
 	wg := sync.WaitGroup{}
 	config := runner.DefaultConfig()
-	config.DispatchTick = time.Millisecond * 100
-	config.TaskQueueSize = 128
+	config.Pipeline.Dispatcher.WithTick(time.Millisecond * 100)
+	config.Pipeline.Producer.WithTaskBuffer(128)
 	ctx := runner.SetupTermination(context.Background())
 	metrics := pipeline.NewMetrics()
 	runner.RunPipeline(ctx, config, fake.TaskProducer{1000}, fake.BatchConsumer{5000}, metrics, &wg)

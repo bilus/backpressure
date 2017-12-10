@@ -9,7 +9,6 @@ import (
 	"github.com/bilus/backpressure/pipeline/producer"
 	"github.com/bilus/backpressure/pipeline/task"
 	"sync"
-	"time"
 )
 
 type PipelineMetrics = []metrics.Metrics
@@ -22,8 +21,20 @@ func NewMetrics() PipelineMetrics {
 	}
 }
 
-func Run(ctx context.Context, tick time.Duration, taskQueueSize int, shutdownGracePeriod time.Duration, taskProducer task.Producer, batchConsumer batch.Consumer, pipelineMetrics PipelineMetrics, wg *sync.WaitGroup) {
-	taskCh, taskPermitCh := producer.Run(ctx, taskProducer, taskQueueSize, shutdownGracePeriod, pipelineMetrics[0], wg)
-	batchCh, batchPermitCh := dispatcher.Go(ctx, tick, taskQueueSize, taskQueueSize/2, taskCh, taskPermitCh, pipelineMetrics[1], wg)
+type Config struct {
+	Producer   producer.Config
+	Dispatcher dispatcher.Config
+}
+
+func DefaultConfig() Config {
+	return Config{
+		Producer:   *producer.DefaultConfig(),
+		Dispatcher: *dispatcher.DefaultConfig(),
+	}
+}
+
+func Go(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer, pipelineMetrics PipelineMetrics, wg *sync.WaitGroup) {
+	taskCh, taskPermitCh := producer.Go(ctx, config.Producer, taskProducer, pipelineMetrics[0], wg)
+	batchCh, batchPermitCh := dispatcher.Go(ctx, config.Dispatcher, taskCh, taskPermitCh, pipelineMetrics[1], wg)
 	consumer.Run(ctx, batchConsumer, batchCh, batchPermitCh, pipelineMetrics[2], wg)
 }

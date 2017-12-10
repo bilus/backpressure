@@ -14,25 +14,24 @@ import (
 )
 
 type Config struct {
-	ExecutionTimeLimit          time.Duration
-	ShutdownGracePeriod         time.Duration
-	ProducerShutdownGracePeriod time.Duration
-	DispatchTick                time.Duration
-	TaskQueueSize               int
+	ExecutionTimeLimit  time.Duration
+	ShutdownGracePeriod time.Duration
+	Pipeline            pipeline.Config
 }
 
 func DefaultConfig() Config {
+	tgp := time.Second * 30
+	pc := pipeline.DefaultConfig()
+	pc.Producer.WithGracePeriod(tgp)
 	return Config{
-		DispatchTick:                time.Millisecond * 100,
-		ExecutionTimeLimit:          0, // No limit.
-		ShutdownGracePeriod:         time.Second * 30,
-		ProducerShutdownGracePeriod: time.Second * 3,
-		TaskQueueSize:               32,
+		ExecutionTimeLimit:  0, // No limit.
+		ShutdownGracePeriod: tgp,
+		Pipeline:            pc,
 	}
 }
 
 func RunPipeline(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer, metrics pipeline.PipelineMetrics, wg *sync.WaitGroup) {
-	pipeline.Run(ctx, config.DispatchTick, config.TaskQueueSize, config.ProducerShutdownGracePeriod, taskProducer, batchConsumer, metrics, wg)
+	pipeline.Go(ctx, config.Pipeline, taskProducer, batchConsumer, metrics, wg)
 }
 
 // SetupTerminate terminates the pipeline on Ctrl+C.

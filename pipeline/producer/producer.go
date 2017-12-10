@@ -11,13 +11,39 @@ import (
 	"time"
 )
 
+type Config struct {
+	TaskBufferSize      int
+	ShutdownGracePeriod time.Duration
+}
+
+func DefaultConfig() *Config {
+	return &Config{
+		TaskBufferSize:      10,
+		ShutdownGracePeriod: time.Second * 30,
+	}
+}
+
+func (c *Config) WithTaskBuffer(size int) *Config {
+	c.TaskBufferSize = size
+	return c
+}
+
+func (c *Config) WithGracePeriod(d time.Duration) *Config {
+	c.ShutdownGracePeriod = d
+	return c
+}
+
 // ASK:
 // How much producer cares about whether data was actually written or not?
 //   - Very much. 200 or 201 -> data was written (have to wait for write to finish).
 //     Use 'completion ports' using chans = request & response.
 //   - Not much. Just put it into the pipeline and respond with 202 Accepted (we'll do our best).
 
-func Run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shutdownGracePeriod time.Duration, metrics metrics.Metrics, wg *sync.WaitGroup) (chan task.Task, chan permit.Permit) {
+func Go(ctx context.Context, config Config, taskProducer task.Producer, metrics metrics.Metrics, wg *sync.WaitGroup) (<-chan task.Task, chan<- permit.Permit) {
+	return run(ctx, taskProducer, config.TaskBufferSize, config.ShutdownGracePeriod, metrics, wg)
+}
+
+func run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shutdownGracePeriod time.Duration, metrics metrics.Metrics, wg *sync.WaitGroup) (chan task.Task, chan permit.Permit) {
 	taskCh := make(chan task.Task, taskChanSize)
 	permitCh := make(chan permit.Permit, 1) // Needs to be closed by the caller.
 

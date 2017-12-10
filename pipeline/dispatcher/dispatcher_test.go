@@ -14,7 +14,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type MySuite struct {
-	Config        dispatcher.Config
+	Config        *dispatcher.Config
 	BatchCh       chan batch.Batch
 	BatchPermitCh chan permit.Permit
 	TaskCh        chan task.Task
@@ -41,7 +41,7 @@ func (_ SomeTask) TaskTypeTag() {}
 
 func (s *MySuite) TestIssuesPermit(c *C) {
 	defer s.WithTimeout(time.Microsecond * 1000)()
-	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, s.Config, s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
+	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config, s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	close(s.TaskCh)
 	s.Wg.Wait()
 	taskPermit := <-s.TaskPermitCh
@@ -55,7 +55,7 @@ func (s *MySuite) TestIssuesPermit(c *C) {
 
 func (s *MySuite) TestBuffersTasksInBatches(c *C) {
 	defer s.WithTimeout(time.Microsecond * 1500)()
-	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, s.Config.WithTick(time.Microsecond*500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
+	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config.WithTick(time.Microsecond * 500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	<-s.TaskPermitCh
 	for i := 0; i < 5; i++ {
 		s.TaskCh <- SomeTask{i}
@@ -77,7 +77,7 @@ func (s *MySuite) TestBuffersTasksInBatches(c *C) {
 
 func (s *MySuite) TestFlushesPeriodically(c *C) {
 	defer s.WithTimeout(time.Microsecond * 6000)()
-	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, s.Config.WithTick(time.Microsecond*5000), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
+	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config.WithTick(time.Microsecond * 5000), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	<-s.TaskPermitCh
 	s.BatchPermitCh <- permit.Permit{1} // Allow 1 batch.
 	s.TaskCh <- SomeTask{1}
@@ -94,7 +94,7 @@ func (s *MySuite) TestFlushesPeriodically(c *C) {
 
 func (s *MySuite) TestIssuesPermitBelowWateMark(c *C) {
 	defer s.WithTimeout(time.Microsecond * 1500)()
-	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, s.Config.WithTick(time.Microsecond*500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
+	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config.WithTick(time.Microsecond * 500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	<-s.TaskPermitCh
 	s.BatchPermitCh <- permit.Permit{1} // Allow 1 batch.
 	c.Assert(async.FetchPermit(s.TaskPermitCh), IsNil)
@@ -114,7 +114,7 @@ func (s *MySuite) TestIssuesPermitBelowWateMark(c *C) {
 
 func (s *MySuite) TestSlidingBatchingPolicy(c *C) {
 	defer s.WithTimeout(time.Microsecond * 1500)()
-	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, s.Config.WithSlidingPolicy(6).WithTick(time.Microsecond*500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
+	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config.WithSlidingPolicy(6).WithTick(time.Microsecond * 500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	<-s.TaskPermitCh
 	for i := 0; i < 8; i++ {
 		s.TaskCh <- SomeTask{i}
@@ -140,7 +140,7 @@ func (s *MySuite) TestSlidingBatchingPolicy(c *C) {
 
 func (s *MySuite) TestDroppingBatchingPolicy(c *C) {
 	defer s.WithTimeout(time.Microsecond * 1500)()
-	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, s.Config.WithDroppingPolicy(6).WithTick(time.Microsecond*500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
+	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config.WithDroppingPolicy(6).WithTick(time.Microsecond * 500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	<-s.TaskPermitCh
 	for i := 0; i < 8; i++ {
 		s.TaskCh <- SomeTask{i}

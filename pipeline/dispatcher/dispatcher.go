@@ -20,9 +20,9 @@ type Config struct {
 	BatchingPolicy batch.BatchingPolicy
 }
 
-func DefaultConfig() Config {
+func DefaultConfig() *Config {
 	maxSize := 10
-	return Config{
+	return &Config{
 		Tick: time.Millisecond * 100,
 		HighWaterMark: maxSize,
 		LowWaterMark: maxSize / 2,
@@ -30,19 +30,19 @@ func DefaultConfig() Config {
 	}
 }
 
-func (c Config) WithTick(tick time.Duration) Config {
+func (c *Config) WithTick(tick time.Duration) *Config {
 	c.Tick = tick
 	return c
 }
 
-func (c Config) WithSlidingPolicy(maxSize int) Config {
+func (c *Config) WithSlidingPolicy(maxSize int) *Config {
 	c.BatchingPolicy = batch.NewSliding(maxSize)
 	c.HighWaterMark = maxSize
 	c.LowWaterMark = maxSize / 2
 	return c
 }
 
-func (c Config) WithDroppingPolicy(maxSize int) Config {
+func (c *Config) WithDroppingPolicy(maxSize int) *Config {
 	c.BatchingPolicy = batch.NewDropping(maxSize)
 	c.HighWaterMark = maxSize
 	c.LowWaterMark = maxSize / 2

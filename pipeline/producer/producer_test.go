@@ -15,10 +15,16 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type MySuite struct {
+	Config *producer.Config
 	async.Suite
 }
 
 var _ = Suite(&MySuite{})
+
+func (s *MySuite) SetUpTest(c *C) {
+	s.Config = producer.DefaultConfig().WithGracePeriod(0).WithTaskBuffer(32)
+	s.Suite.SetUpTest(c)
+}
 
 type InfiniteProducer struct {
 	lastId int
@@ -50,14 +56,14 @@ func (_ SomeTask) TaskTypeTag() {}
 
 func (s *MySuite) TestDoesNotProduceWithoutPermit(c *C) {
 	defer s.WithTimeout(time.Microsecond * 30)()
-	producer.Run(s.Ctx, &InfiniteProducer{}, 32, 0, s.Metrics, &s.Wg)
+	producer.Go(s.Ctx, *s.Config, &InfiniteProducer{}, s.Metrics, &s.Wg)
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(0))
 }
 
 func (s *MySuite) TestFullfillsQuotaInPermit(c *C) {
-	defer s.WithTimeout(time.Microsecond * 500)()
-	taskCh, permitCh := producer.Run(s.Ctx, &InfiniteProducer{}, 32, 0, s.Metrics, &s.Wg)
+	defer s.WithTimeout(time.Microsecond * 1500)()
+	taskCh, permitCh := producer.Go(s.Ctx, *s.Config, &InfiniteProducer{}, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(4))
@@ -71,7 +77,7 @@ func (s *MySuite) TestFullfillsQuotaInPermit(c *C) {
 
 func (s *MySuite) TestClosesTaskChanWhenTerminated(c *C) {
 	defer s.WithTimeout(time.Microsecond * 500)()
-	taskCh, permitCh := producer.Run(s.Ctx, &InfiniteProducer{}, 32, 0, s.Metrics, &s.Wg)
+	taskCh, permitCh := producer.Go(s.Ctx, *s.Config, &InfiniteProducer{}, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
 	s.Wg.Wait()
 	for i := 0; i < 4; i++ {
@@ -84,7 +90,7 @@ func (s *MySuite) TestClosesTaskChanWhenTerminated(c *C) {
 
 func (s *MySuite) TestFailuresProducingTasksExceptFirst(c *C) {
 	defer s.WithTimeout(time.Microsecond * 100)()
-	taskCh, permitCh := producer.Run(s.Ctx, &FailingProducer{failSinceId: 2}, 1, 0, s.Metrics, &s.Wg)
+	taskCh, permitCh := producer.Go(s.Ctx, *s.Config.WithTaskBuffer(1), &FailingProducer{failSinceId: 2}, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(1))
@@ -101,7 +107,7 @@ func (s *MySuite) TestFailureAfterProducing(c *C) {
 	// to taskCh. After context is cancelled, it will report a failure because a task has been produced
 	// but it cannot be queued and is thus lost.
 	defer s.WithTimeout(time.Microsecond * 100)()
-	taskCh, permitCh := producer.Run(s.Ctx, &InfiniteProducer{}, 0, 0, s.Metrics, &s.Wg)
+	taskCh, permitCh := producer.Go(s.Ctx, *s.Config.WithTaskBuffer(0), &InfiniteProducer{}, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(1))

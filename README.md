@@ -10,12 +10,6 @@ go run main.go
 
 ## TODO
 
-- Automated test
-  + producer
-  + consumer
-  + bucket
-  + dispatcher
-  - pipeline
 - Structured logging https://github.com/sirupsen/logrus
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.

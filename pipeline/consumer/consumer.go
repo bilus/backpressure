@@ -12,6 +12,16 @@ import (
 	"sync"
 )
 
+type Config struct{}
+
+func DefaultConfig() *Config {
+	return &Config{}
+}
+
+func Go(ctx context.Context, _ Config, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
+	run(ctx, batchConsumer, batchCh, permitCh, metrics, wg)
+}
+
 // TODO: Retries.
 // ASK: This is Archai so maybe we should keep trying forever until it gets it shit together.
 // ASK: How to make that shit idempotent:
@@ -19,7 +29,7 @@ import (
 // - have Archai by adding an operation id to each operation and a way to query Archai for its status
 
 // As far as metrics are concerned, it tracks the average time it takes to consume a task.
-func Run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
+func run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

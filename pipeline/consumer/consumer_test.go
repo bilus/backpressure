@@ -17,7 +17,15 @@ func Test(t *testing.T) { TestingT(t) }
 type MySuite struct {
 	BatchCh  chan batch.Batch
 	PermitCh chan permit.Permit
+	Config   *consumer.Config
 	async.Suite
+}
+
+func (s *MySuite) SetUpTest(c *C) {
+	s.BatchCh = make(chan batch.Batch, 1)
+	s.PermitCh = make(chan permit.Permit)
+	s.Config = consumer.DefaultConfig()
+	s.Suite.SetUpTest(c)
 }
 
 var _ = Suite(&MySuite{})
@@ -57,16 +65,10 @@ func (fc *TerminatingConsumer) ConsumeBatch(ctx context.Context, batch batch.Bat
 	return ctx.Err()
 }
 
-func (s *MySuite) SetUpTest(c *C) {
-	s.BatchCh = make(chan batch.Batch, 1)
-	s.PermitCh = make(chan permit.Permit)
-	s.Suite.SetUpTest(c)
-}
-
 func (s *MySuite) TestIssuesInitialPermit(c *C) {
 	defer s.WithTimeout(time.Microsecond * 200)()
 	cc := CollectingConsumer{}
-	consumer.Run(s.Ctx, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	permit, ok := <-s.PermitCh
 	c.Assert(ok, Equals, true)
 	c.Assert(permit.SizeHint, Equals, 1)
@@ -78,7 +80,7 @@ func (s *MySuite) TestIssuesInitialPermit(c *C) {
 func (s *MySuite) TestProcessesPermittedBatchUntilClosed(c *C) {
 	defer s.WithTimeout(time.Microsecond * 200)()
 	cc := CollectingConsumer{}
-	consumer.Run(s.Ctx, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{SomeTask{1}, SomeTask{2}}
 	<-s.PermitCh
@@ -94,7 +96,7 @@ func (s *MySuite) TestProcessesPermittedBatchUntilClosed(c *C) {
 func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
 	defer s.WithTimeout(time.Microsecond * 300)()
 	cc := CollectingConsumer{}
-	consumer.Run(s.Ctx, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{SomeTask{1}, SomeTask{2}}
 	s.BatchCh <- batch.Batch{SomeTask{3}, SomeTask{4}}
@@ -115,7 +117,7 @@ func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
 
 func (s *MySuite) TestConsumerFailure(c *C) {
 	defer s.WithTimeout(time.Microsecond * 300)()
-	consumer.Run(s.Ctx, &FailingConsumer{errors.New("Ooops!")}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &FailingConsumer{errors.New("Ooops!")}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{SomeTask{1}, SomeTask{2}}
 	close(s.BatchCh)
@@ -127,7 +129,7 @@ func (s *MySuite) TestConsumerFailure(c *C) {
 
 func (s *MySuite) TestConsumerTerminatesWhileProducing(c *C) {
 	defer s.WithTimeout(time.Microsecond * 300)()
-	consumer.Run(s.Ctx, &TerminatingConsumer{s.Cancel}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &TerminatingConsumer{s.Cancel}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{SomeTask{1}, SomeTask{2}}
 	close(s.BatchCh)
@@ -139,7 +141,7 @@ func (s *MySuite) TestConsumerTerminatesWhileProducing(c *C) {
 
 func (s *MySuite) TestConsumerTerminatesWhileWaitingForBatch(c *C) {
 	defer s.WithTimeout(time.Microsecond * 300)()
-	consumer.Run(s.Ctx, &CollectingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &CollectingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.Cancel()
 	time.Sleep(time.Microsecond * 10) // Race cond between Cancel and close.
@@ -153,7 +155,7 @@ func (s *MySuite) TestConsumerTerminatesWhileWaitingForBatch(c *C) {
 func (s *MySuite) TestConsumerTerminatesWhileSendingPermit(c *C) {
 	s.PermitCh = make(chan permit.Permit) // no buffer so consumer blocks
 	defer s.WithTimeout(time.Microsecond * 300)()
-	consumer.Run(s.Ctx, &CollectingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
+	consumer.Go(s.Ctx, *s.Config, &CollectingConsumer{}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	s.Cancel()
 	close(s.BatchCh)
 	s.Wg.Wait()

@@ -24,17 +24,19 @@ func NewMetrics() PipelineMetrics {
 type Config struct {
 	Producer   producer.Config
 	Dispatcher dispatcher.Config
+	Consumer   consumer.Config
 }
 
 func DefaultConfig() Config {
 	return Config{
 		Producer:   *producer.DefaultConfig(),
 		Dispatcher: *dispatcher.DefaultConfig(),
+		Consumer:   *consumer.DefaultConfig(),
 	}
 }
 
 func Go(ctx context.Context, config Config, taskProducer task.Producer, batchConsumer batch.Consumer, pipelineMetrics PipelineMetrics, wg *sync.WaitGroup) {
 	taskCh, taskPermitCh := producer.Go(ctx, config.Producer, taskProducer, pipelineMetrics[0], wg)
 	batchCh, batchPermitCh := dispatcher.Go(ctx, config.Dispatcher, taskCh, taskPermitCh, pipelineMetrics[1], wg)
-	consumer.Run(ctx, batchConsumer, batchCh, batchPermitCh, pipelineMetrics[2], wg)
+	consumer.Go(ctx, config.Consumer, batchConsumer, batchCh, batchPermitCh, pipelineMetrics[2], wg)
 }

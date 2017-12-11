@@ -19,8 +19,6 @@ go run main.go
 - Structured logging https://github.com/sirupsen/logrus
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.
-- Run -> Go
-- Limit batch size -- use interface for batch buffering.
 
 - DD metrics example
 

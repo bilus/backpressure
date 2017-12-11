@@ -26,7 +26,7 @@ func DefaultConfig() Config {
 	return Config{
 		ExecutionTimeLimit:  0, // No limit.
 		ShutdownGracePeriod: tgp,
-		Pipeline:            pc,
+		Pipeline:            *pc,
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/task"
+	"google.golang.org/api/iterator"
 	"log"
 	"sync"
 	"time"
@@ -56,7 +57,11 @@ func run(ctx context.Context, taskProducer task.Producer, taskChanSize int, shut
 			select {
 			case permit := <-permitCh:
 				log.Printf(colors.Blue("Got permit: %v"), permit)
-				produceWithinQuota(ctx, permit, taskProducer, taskCh, shutdownGracePeriod, metrics)
+				err := produceWithinQuota(ctx, permit, taskProducer, taskCh, shutdownGracePeriod, metrics)
+				if err == iterator.Done {
+					log.Printf(colors.Blue("Exiting producer: %v"), ctx.Err())
+					return
+				}
 			case <-ctx.Done():
 				log.Println(colors.Blue("Exiting producer"))
 				return
@@ -76,6 +81,8 @@ func produceWithinQuota(ctx context.Context, permit permit.Permit, taskProducer 
 		}
 		if ctx.Err() != nil {
 			log.Printf(colors.Blue("Exiting producer: %v"), ctx.Err())
+			return err
+		} else if err == iterator.Done {
 			return err
 		} else if err != nil {
 			log.Printf(colors.Red("Error producing task: %v"), err) // TODO: Will retry producing indefinitely.

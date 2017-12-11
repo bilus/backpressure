@@ -27,8 +27,8 @@ type Config struct {
 	Consumer   consumer.Config
 }
 
-func DefaultConfig() Config {
-	return Config{
+func DefaultConfig() *Config {
+	return &Config{
 		Producer:   *producer.DefaultConfig(),
 		Dispatcher: *dispatcher.DefaultConfig(),
 		Consumer:   *consumer.DefaultConfig(),

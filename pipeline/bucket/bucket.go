@@ -2,6 +2,7 @@ package bucket
 
 import (
 	"context"
+	"fmt"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"log"
@@ -16,7 +17,7 @@ type Bucket struct {
 
 func New(permitCh chan<- permit.Permit, lowWaterMark int, highWaterMark int) Bucket {
 	if highWaterMark == lowWaterMark {
-		panic("HighWaterMark must be higher than lowWaterMark")
+		panic(fmt.Sprintf("HighWaterMark must be higher than lowWaterMark h=%v l=%v", highWaterMark, lowWaterMark))
 	}
 	return Bucket{
 		PermitCh:      permitCh,

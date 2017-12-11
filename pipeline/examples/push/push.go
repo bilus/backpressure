@@ -29,7 +29,9 @@ func Run(port int) {
 
 	if config.ExecutionTimeLimit > 0 {
 		log.Println("Running with a timeout!")
-		ctx, _ = context.WithTimeout(ctx, config.ExecutionTimeLimit)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, config.ExecutionTimeLimit)
+		defer cancel()
 	}
 	err := httputil.ListenAndServeWithContext(ctx, fmt.Sprintf(":%v", port), pushHandler(pushCh), &wg)
 	if err != nil {

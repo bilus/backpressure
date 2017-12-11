@@ -28,7 +28,7 @@ type BasicMetrics struct {
 	mtx        *sync.Mutex
 }
 
-func NewBasic(sourceName string) Metrics {
+func NewBasic(sourceName string) *BasicMetrics {
 	return &BasicMetrics{sourceName, 0, 0, 0, ewma.NewMovingAverage(), &sync.Mutex{}}
 }
 
@@ -95,7 +95,7 @@ func (span *BasicSpan) Success(delta uint64) {
 	bm.mtx.Lock()
 	defer bm.mtx.Unlock()
 	span.metrics.EndWithSuccess(delta)
-	t := time.Now().Sub(span.start).Seconds() / float64(delta)
+	t := time.Since(span.start).Seconds() / float64(delta)
 	for i := uint64(0); i < delta; i++ {
 		bm.AvgTime.Add(t)
 	}
@@ -109,7 +109,7 @@ func (span *BasicSpan) Failure(delta uint64) {
 	bm.mtx.Lock()
 	defer bm.mtx.Unlock()
 	span.metrics.EndWithFailure(delta)
-	t := time.Now().Sub(span.start).Seconds() / float64(delta)
+	t := time.Since(span.start).Seconds() / float64(delta)
 	for i := uint64(0); i < delta; i++ {
 		bm.AvgTime.Add(t)
 	}

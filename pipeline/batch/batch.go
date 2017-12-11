@@ -23,8 +23,8 @@ type BatchingPolicy interface {
 	AddTask(task task.Task) error
 	// GetBatch returns the buffered batch of tasks.
 	GetBatch() Batch
-	// IsEmpty returns true if no tasks buffered yet.
-	IsEmpty() bool
+	// Size returns the numbef of buffered tasks.
+	Size() int
 	// Clears the policy state.
 	Reset()
 }
@@ -86,9 +86,9 @@ func (s *Sliding) GetBatch() Batch {
 	return s.Batch[:s.numUsed]
 }
 
-// IsEmpty returns true if the current batch is empty.
-func (s *Sliding) IsEmpty() bool {
-	return s.numUsed == 0
+// Size returns true if the current batch is empty.
+func (s *Sliding) Size() int {
+	return s.numUsed
 }
 
 // Dropping batching policy maintains a batch of up to MaxSize tasks.
@@ -131,7 +131,7 @@ func (d *Dropping) GetBatch() Batch {
 	return d.Batch[:d.next]
 }
 
-// IsEmpty returns true if the current batch is empty.
-func (d *Dropping) IsEmpty() bool {
-	return d.next == 0
+// Size returns true if the current batch is empty.
+func (d *Dropping) Size() int {
+	return d.next
 }

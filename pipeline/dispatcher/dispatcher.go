@@ -80,7 +80,7 @@ func run(ctx context.Context, tick time.Duration, highWaterMark int, lowWaterMar
 					}
 				}
 			case <-ticker.C:
-				if !buffer.IsEmpty() {
+				if buffer.Size() > 0 {
 					select {
 					case <-permitCh:
 						currentSpan = flushBuffer(buffer, batchCh, currentSpan, metrics)

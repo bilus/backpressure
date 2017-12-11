@@ -10,6 +10,7 @@ go run main.go
 
 ## TODO
 
+- Fix dropping tasks under pressure
 - Structured logging https://github.com/sirupsen/logrus
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
 - Rename metrics.Metrics to metrics.Counters.

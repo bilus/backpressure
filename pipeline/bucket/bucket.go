@@ -16,7 +16,7 @@ type Bucket struct {
 }
 
 func New(permitCh chan<- permit.Permit, lowWaterMark int, highWaterMark int) Bucket {
-	if highWaterMark == lowWaterMark {
+	if highWaterMark <= lowWaterMark {
 		panic(fmt.Sprintf("HighWaterMark must be higher than lowWaterMark h=%v l=%v", highWaterMark, lowWaterMark))
 	}
 	return Bucket{

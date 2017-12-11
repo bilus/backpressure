@@ -23,7 +23,9 @@ type BatchingPolicy interface {
 	AddTask(task task.Task) error
 	// GetBatch returns the buffered batch of tasks.
 	GetBatch() Batch
-	// Size returns the numbef of buffered tasks.
+	// MaxSize returns the number of tasks the buffer can hold.
+	MaxSize() int
+	// Size returns the number of buffered tasks.
 	Size() int
 	// Clears the policy state.
 	Reset()
@@ -41,8 +43,8 @@ func (err Dropped) Error() string {
 // Sliding batching policy maintains a batch of up to MaxSize tasks.
 // When full the oldest task will be dropped.
 type Sliding struct {
-	MaxSize int
-	Batch
+	maxSize int
+	batch   Batch
 	next    int
 	numUsed int
 }
@@ -50,8 +52,8 @@ type Sliding struct {
 // NewSliding creates a new sliding batching policy.
 func NewSliding(maxSize int) *Sliding {
 	return &Sliding{
-		MaxSize: maxSize,
-		Batch:   make(Batch, maxSize),
+		maxSize: maxSize,
+		batch:   make(Batch, maxSize),
 	}
 }
 
@@ -59,7 +61,7 @@ func (s *Sliding) Reset() {
 	// We need to create a new slice because the existing one
 	// may have already been put onto o channel or referenced
 	// in another way.
-	s.Batch = make(Batch, s.MaxSize)
+	s.batch = make(Batch, s.maxSize)
 	s.next = 0
 	s.numUsed = 0
 }
@@ -67,15 +69,15 @@ func (s *Sliding) Reset() {
 // AddTask adds a new task to the sliding buffer. If the buffer is full it drops
 // the oldest task and returns the Dropped error.
 func (s *Sliding) AddTask(task task.Task) (err error) {
-	if s.numUsed == s.MaxSize {
-		err = Dropped{s.Batch[s.next]}
+	if s.numUsed == s.maxSize {
+		err = Dropped{s.batch[s.next]}
 	}
-	s.Batch[s.next] = task
+	s.batch[s.next] = task
 	s.next++
 	if s.numUsed < s.next {
 		s.numUsed = s.next
 	}
-	if s.next >= s.MaxSize {
+	if s.next >= s.maxSize {
 		s.next = 0
 	}
 	return
@@ -83,7 +85,12 @@ func (s *Sliding) AddTask(task task.Task) (err error) {
 
 // GetBatch returns the current batch maintained by the sliding policy.
 func (s *Sliding) GetBatch() Batch {
-	return s.Batch[:s.numUsed]
+	return s.batch[:s.numUsed]
+}
+
+// MaxSize returns the number of tasks the buffer can hold.
+func (s *Sliding) MaxSize() int {
+	return s.maxSize
 }
 
 // Size returns true if the current batch is empty.
@@ -94,16 +101,16 @@ func (s *Sliding) Size() int {
 // Dropping batching policy maintains a batch of up to MaxSize tasks.
 // When full, new tasks will be dropped.
 type Dropping struct {
-	MaxSize int
-	Batch
-	next int
+	maxSize int
+	batch   Batch
+	next    int
 }
 
 // NewDropping creates a new dropping batching policy.
 func NewDropping(maxSize int) *Dropping {
 	return &Dropping{
-		MaxSize: maxSize,
-		Batch:   make(Batch, maxSize),
+		maxSize: maxSize,
+		batch:   make(Batch, maxSize),
 	}
 }
 
@@ -112,23 +119,28 @@ func (d *Dropping) Reset() {
 	// We need to create a new slice because the existing one
 	// may have already been put onto o channel or referenced
 	// in another way.
-	d.Batch = make(Batch, d.MaxSize)
+	d.batch = make(Batch, d.maxSize)
 	d.next = 0
 }
 
 // AddTasks adds a new task, dropping it if the buffer is full.
 func (d *Dropping) AddTask(task task.Task) error {
-	if d.next >= d.MaxSize {
+	if d.next >= d.maxSize {
 		return Dropped{task}
 	}
-	d.Batch[d.next] = task
+	d.batch[d.next] = task
 	d.next++
 	return nil
 }
 
 // GetBatch returns the current batch maintained by the policy.
 func (d *Dropping) GetBatch() Batch {
-	return d.Batch[:d.next]
+	return d.batch[:d.next]
+}
+
+// MaxSize returns the number of tasks the buffer can hold.
+func (d *Dropping) MaxSize() int {
+	return d.maxSize
 }
 
 // Size returns true if the current batch is empty.

@@ -97,10 +97,9 @@ func (s *MySuite) TestIssuesPermitBelowWateMark(c *C) {
 		s.TaskCh <- fixtures.SomeTask{i}
 	}
 	close(s.TaskCh)
-	time.Sleep(time.Microsecond * 500) // Wait for flush
+	<-s.BatchCh // Wait for flush
 	permit := <-s.TaskPermitCh
 	c.Assert(permit.SizeHint, Equals, 10)
-	<-s.BatchCh
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(15))
 	c.Assert(s.Metrics.Successes, Equals, uint64(15))
@@ -134,7 +133,7 @@ func (s *MySuite) TestSlidingBatchingPolicy(c *C) {
 }
 
 func (s *MySuite) TestDroppingBatchingPolicy(c *C) {
-	defer s.WithTimeout(time.Microsecond * 1500)()
+	defer s.WithTimeout(time.Microsecond * 2500)()
 	s.BatchCh, s.BatchPermitCh = dispatcher.Go(s.Ctx, *s.Config.WithDroppingPolicy(6).WithTick(time.Microsecond * 500), s.TaskCh, s.TaskPermitCh, s.Metrics, &s.Wg)
 	<-s.TaskPermitCh
 	for i := 0; i < 8; i++ {
@@ -143,9 +142,7 @@ func (s *MySuite) TestDroppingBatchingPolicy(c *C) {
 	close(s.TaskCh)
 	s.BatchPermitCh <- permit.Permit{1} // Allow 1 batch.
 	time.Sleep(time.Microsecond * 500)  // Wait for flush
-	println("getting batch")
 	batch := <-s.BatchCh
-	println("got batch")
 	c.Assert(len(batch), Equals, 6)
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(8))

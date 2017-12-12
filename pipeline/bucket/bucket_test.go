@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/bilus/backpressure/pipeline/bucket"
 	"github.com/bilus/backpressure/pipeline/permit"
-	"github.com/bilus/backpressure/test/async"
 	. "gopkg.in/check.v1"
 	"testing"
 	"time"
@@ -36,27 +35,30 @@ func (s *MySuite) TestEmpty(c *C) {
 	c.Assert(s.Bucket.HighWaterMark, Equals, s.HWM)
 	c.Assert(s.Bucket.LowWaterMark, Equals, s.LWM)
 	c.Assert(s.Bucket.WaterLevel, Equals, 0)
+	c.Assert(s.Bucket.RefillNeeded(), Equals, 4)
 }
 
 func (s *MySuite) TestFillUpEmpty(c *C) {
-	s.Bucket.FillUp(s.Ctx)
+	s.Bucket.FillUp(s.Ctx, s.Bucket.RefillNeeded())
 	permit := <-s.PermitChan
 	c.Assert(permit.SizeHint, Equals, s.HWM)
 	c.Assert(s.Bucket.WaterLevel, Equals, s.HWM)
 }
 
 func (s *MySuite) TestDrainAboveLowWaterMark(c *C) {
-	s.Bucket.FillUp(s.Ctx)
+	s.Bucket.FillUp(s.Ctx, s.Bucket.RefillNeeded())
 	<-s.PermitChan
 	s.Bucket.Drain(s.Ctx, 1)
 	c.Assert(s.Bucket.WaterLevel, Equals, s.HWM-1)
-	c.Assert(async.FetchPermit(s.PermitChan), IsNil)
+	c.Assert(s.Bucket.RefillNeeded(), Equals, 0)
 }
 
 func (s *MySuite) TestDrainBelowLowWaterMark(c *C) {
-	s.Bucket.FillUp(s.Ctx)
+	s.Bucket.FillUp(s.Ctx, s.Bucket.RefillNeeded())
 	<-s.PermitChan
 	s.Bucket.Drain(s.Ctx, 3)
+	c.Assert(s.Bucket.RefillNeeded(), Equals, 3)
+	s.Bucket.FillUp(s.Ctx, s.Bucket.RefillNeeded())
 	permit := <-s.PermitChan
 	c.Assert(permit.SizeHint, Equals, 3)
 	c.Assert(s.Bucket.WaterLevel, Equals, s.HWM)
@@ -68,5 +70,17 @@ func (s *MySuite) TestSendingPermitCanBeInterrupted(c *C) {
 	defer cancel()
 	s.PermitChan = make(chan permit.Permit)
 	s.Bucket = bucket.New(s.PermitChan, s.LWM, s.HWM)
-	s.Bucket.FillUp(s.Ctx) // Will block.
+	s.Bucket.FillUp(s.Ctx, s.Bucket.RefillNeeded())
+}
+
+func (s *MySuite) TestFillUpBelowCapacity(c *C) {
+	s.Bucket.FillUp(s.Ctx, s.Bucket.RefillNeeded())
+	<-s.PermitChan
+	s.Bucket.Drain(s.Ctx, 3)
+	c.Assert(s.Bucket.RefillNeeded(), Equals, 3)
+	s.Bucket.FillUp(s.Ctx, 1)
+	permit := <-s.PermitChan
+	c.Assert(permit.SizeHint, Equals, 1)
+	c.Assert(s.Bucket.WaterLevel, Equals, s.HWM-2)
+	c.Assert(s.Bucket.RefillNeeded(), Equals, 2)
 }

@@ -19,7 +19,7 @@ func main() {
 	config.Pipeline.Producer.WithTaskBuffer(128)
 	ctx := runner.SetupTermination(context.Background())
 	metrics := pipeline.NewMetrics()
-	runner.RunPipeline(ctx, config, fake.TaskProducer{1000}, fake.BatchConsumer{5000}, metrics, &wg)
+	runner.RunPipeline(ctx, config, fake.TaskProducer{10}, fake.BatchConsumer{50}, metrics, &wg)
 	reporter.Run(ctx, time.Second*5, &wg, metrics...)
 	runner.WaitToTerminate(ctx, &wg, config.ShutdownGracePeriod)
 	// Print the metrics at the end.

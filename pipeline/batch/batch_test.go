@@ -23,6 +23,7 @@ func (s *MySuite) TestSlidingBuffering(c *C) {
 		fixtures.SomeTask{1},
 		fixtures.SomeTask{2},
 	})
+	c.Assert(sliding.Size(), Equals, 3)
 	sliding.AddTask(fixtures.SomeTask{3})
 	c.Assert(sliding.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{0},
@@ -30,6 +31,7 @@ func (s *MySuite) TestSlidingBuffering(c *C) {
 		fixtures.SomeTask{2},
 		fixtures.SomeTask{3},
 	})
+	c.Assert(sliding.Size(), Equals, 4)
 	c.Assert(sliding.AddTask(fixtures.SomeTask{4}), Equals, batch.Dropped{fixtures.SomeTask{0}})
 	c.Assert(sliding.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{4},
@@ -37,6 +39,7 @@ func (s *MySuite) TestSlidingBuffering(c *C) {
 		fixtures.SomeTask{2},
 		fixtures.SomeTask{3},
 	})
+	c.Assert(sliding.Size(), Equals, 4)
 	c.Assert(sliding.AddTask(fixtures.SomeTask{5}), Equals, batch.Dropped{fixtures.SomeTask{1}})
 	c.Assert(sliding.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{4},
@@ -44,6 +47,7 @@ func (s *MySuite) TestSlidingBuffering(c *C) {
 		fixtures.SomeTask{2},
 		fixtures.SomeTask{3},
 	})
+	c.Assert(sliding.Size(), Equals, 4)
 	c.Assert(sliding.AddTask(fixtures.SomeTask{6}), Equals, batch.Dropped{fixtures.SomeTask{2}})
 	c.Assert(sliding.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{4},
@@ -51,6 +55,7 @@ func (s *MySuite) TestSlidingBuffering(c *C) {
 		fixtures.SomeTask{6},
 		fixtures.SomeTask{3},
 	})
+	c.Assert(sliding.Size(), Equals, 4)
 	c.Assert(sliding.AddTask(fixtures.SomeTask{7}), Equals, batch.Dropped{fixtures.SomeTask{3}})
 	c.Assert(sliding.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{4},
@@ -58,6 +63,7 @@ func (s *MySuite) TestSlidingBuffering(c *C) {
 		fixtures.SomeTask{6},
 		fixtures.SomeTask{7},
 	})
+	c.Assert(sliding.Size(), Equals, 4)
 	c.Assert(sliding.AddTask(fixtures.SomeTask{8}), Equals, batch.Dropped{fixtures.SomeTask{4}})
 	c.Assert(sliding.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{8},
@@ -77,6 +83,7 @@ func (s *MySuite) TestDroppingBuffering(c *C) {
 		fixtures.SomeTask{1},
 		fixtures.SomeTask{2},
 	})
+	c.Assert(dropping.Size(), Equals, 3)
 	dropping.AddTask(fixtures.SomeTask{3})
 	c.Assert(dropping.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{0},
@@ -84,6 +91,7 @@ func (s *MySuite) TestDroppingBuffering(c *C) {
 		fixtures.SomeTask{2},
 		fixtures.SomeTask{3},
 	})
+	c.Assert(dropping.Size(), Equals, 4)
 	c.Assert(dropping.AddTask(fixtures.SomeTask{4}), Equals, batch.Dropped{fixtures.SomeTask{4}})
 	c.Assert(dropping.GetBatch(), DeepEquals, batch.Batch{
 		fixtures.SomeTask{0},
@@ -91,4 +99,5 @@ func (s *MySuite) TestDroppingBuffering(c *C) {
 		fixtures.SomeTask{2},
 		fixtures.SomeTask{3},
 	})
+	c.Assert(dropping.Size(), Equals, 4)
 }

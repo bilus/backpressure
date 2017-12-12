@@ -30,11 +30,12 @@ func Go(ctx context.Context, _ Config, batchConsumer batch.Consumer, batchCh <-c
 
 // As far as metrics are concerned, it tracks the average time it takes to consume a task.
 func run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, permitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) {
+	// TODO: Use Buffer instead of Bucket.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		buckt := bucket.New(permitCh, 0, 1) // Always ask for one batch if it drops to 0.
-		if err := buckt.FillUp(ctx); err != nil {
+		if err := buckt.FillUp(ctx, 1); err != nil {
 			log.Printf(colors.Yellow("Exiting consumer: %v"), err)
 			return
 		}
@@ -47,6 +48,10 @@ func run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 				}
 			}
 			if err := buckt.Drain(ctx, 1); err != nil {
+				log.Printf(colors.Yellow("Exiting consumer: %v"), err)
+				return
+			}
+			if err := buckt.FillUp(ctx, 1); err != nil {
 				log.Printf(colors.Yellow("Exiting consumer: %v"), err)
 				return
 			}

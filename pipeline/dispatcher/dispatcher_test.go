@@ -8,6 +8,7 @@ import (
 	"github.com/bilus/backpressure/test/async"
 	"github.com/bilus/backpressure/test/fixtures"
 	. "gopkg.in/check.v1"
+	"log"
 	"testing"
 	"time"
 )
@@ -26,11 +27,12 @@ type MySuite struct {
 var _ = Suite(&MySuite{})
 
 func (s *MySuite) SetUpTest(c *C) {
-	s.Config = dispatcher.DefaultConfig().WithDroppingPolicy(20)
+	s.Config = dispatcher.DefaultConfig().WithDroppingPolicy(30)
 	s.BatchCh = make(chan batch.Batch, 1)
 	s.BatchPermitCh = make(chan permit.Permit, 1)
 	s.TaskCh = make(chan task.Task, 1)
 	s.TaskPermitCh = make(chan permit.Permit, 1)
+	log.Println("SetUpTest", c, len(s.TaskPermitCh))
 	s.Suite.SetUpTest(c)
 }
 
@@ -116,9 +118,7 @@ func (s *MySuite) TestSlidingBatchingPolicy(c *C) {
 	close(s.TaskCh)
 	s.BatchPermitCh <- permit.Permit{1} // Allow 1 batch.
 	time.Sleep(time.Microsecond * 500)  // Wait for flush
-	println("getting batch")
 	batch := <-s.BatchCh
-	println("got batch")
 	c.Assert(len(batch), Equals, 6)
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(8))

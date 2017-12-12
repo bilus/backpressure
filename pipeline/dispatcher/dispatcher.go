@@ -20,10 +20,9 @@ type Config struct {
 }
 
 func DefaultConfig() *Config {
-	maxSize := 10
+	maxSize := 15
 	return &Config{
 		Tick: time.Millisecond * 100,
-		LowWaterMark: maxSize / 2,
 		BatchingPolicy: batch.NewDropping(maxSize),
 	}
 }
@@ -46,17 +45,17 @@ func (c *Config) WithDroppingPolicy(maxSize int) *Config {
 }
 
 func Go(ctx context.Context, config Config, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
-	return run(ctx, config.Tick, config.LowWaterMark, taskCh, taskPermitCh, config.BatchingPolicy, metrics, wg)
+	return run(ctx, config.Tick, taskCh, taskPermitCh, config.BatchingPolicy, metrics, wg)
 }
 
 // As far as metrics are concerned, it tracks avg time between completion of dispatches divided in the number of tasks in a batch.
-func run(ctx context.Context, tick time.Duration, lowWaterMark int, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit, batchingPolicy batch.BatchingPolicy, metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
+func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit, batchingPolicy batch.BatchingPolicy, metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
 	batchCh := make(chan batch.Batch)
 	permitCh := make(chan permit.Permit, 1)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buffer := buffer.New(taskPermitCh, batchingPolicy, lowWaterMark)
+		buffer := buffer.New(taskPermitCh, batchingPolicy)
 		if err := buffer.Prefill(ctx); err != nil {
 			log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 			return
@@ -79,7 +78,6 @@ func run(ctx context.Context, tick time.Duration, lowWaterMark int, taskCh <-cha
 					select {
 					case <-permitCh:
 						currentSpan = flushBuffer(ctx, buffer, batchCh, currentSpan, metrics)
-						// buckt.FillUp(ctx)
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
 						return
@@ -113,14 +111,13 @@ func bufferTask(ctx context.Context, task task.Task, buffer *buffer.Buffer, curr
 }
 
 func flushBuffer(ctx context.Context, buffer *buffer.Buffer, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) metrics.Span {
-	currentBatch := buffer.GetBatch()
-	if len(currentBatch) > 0 {
-		log.Println("Flushing to batch chan", len(currentBatch))
-		batchCh <- currentBatch
+	batchLen, err := buffer.Flush(ctx, batchCh)
+	if err != nil {
+		currentSpan.Failure(uint64(batchLen))
+	} else {
+		currentSpan.Success(uint64(batchLen))
 	}
-	currentSpan.Success(uint64(len(currentBatch)))
 	newSpan := metrics.Begin(0)
-	buffer.Recycle(ctx)
 	return newSpan
 }
 

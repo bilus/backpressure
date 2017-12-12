@@ -29,7 +29,7 @@ func (s *MySuite) SetUpTest(c *C) {
 var _ = Suite(&MySuite{})
 
 func (s *MySuite) TestEverythingIsProduced(c *C) {
-	defer s.WithTimeout(time.Microsecond * 1500)()
+	defer s.WithTimeout(time.Microsecond * 5000)()
 	cc := fixtures.CollectingConsumer{}
 	pipeline.Go(s.Ctx, *s.Config, &fixtures.FiniteProducer{MaxTasks: 4}, &cc, s.Metrics, &s.Wg)
 	s.Wg.Wait()

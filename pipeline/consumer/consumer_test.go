@@ -23,7 +23,7 @@ type MySuite struct {
 
 func (s *MySuite) SetUpTest(c *C) {
 	s.BatchCh = make(chan batch.Batch, 1)
-	s.PermitCh = make(chan permit.Permit)
+	s.PermitCh = make(chan permit.Permit, 1)
 	s.Config = consumer.DefaultConfig()
 	s.Suite.SetUpTest(c)
 }
@@ -59,24 +59,25 @@ func (s *MySuite) TestProcessesPermittedBatchUntilClosed(c *C) {
 }
 
 func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
-	defer s.WithTimeout(time.Microsecond * 300)()
+	s.PermitCh = make(chan permit.Permit)
+	s.BatchCh = make(chan batch.Batch)
+	defer s.WithTimeout(time.Microsecond * 1300)()
 	cc := fixtures.CollectingConsumer{}
 	consumer.Go(s.Ctx, *s.Config, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{fixtures.SomeTask{1}, fixtures.SomeTask{2}}
-	s.BatchCh <- batch.Batch{fixtures.SomeTask{3}, fixtures.SomeTask{4}}
 	// No permit.
 	select {
-	case s.BatchCh <- batch.Batch{fixtures.SomeTask{5}, fixtures.SomeTask{6}}:
+	case s.BatchCh <- batch.Batch{fixtures.SomeTask{3}, fixtures.SomeTask{6}}:
 		c.Fatal("Another batch should not be available yet")
 	case <-time.After(time.Microsecond * 100):
 		// Should fail.
 	}
 	close(s.BatchCh)
 	s.Wg.Wait()
-	c.Assert(cc.ConsumedIds, DeepEquals, []int{1, 2, 3, 4})
-	c.Assert(s.Metrics.Iterations, Equals, uint64(4))
-	c.Assert(s.Metrics.Successes, Equals, uint64(4))
+	c.Assert(cc.ConsumedIds, DeepEquals, []int{1, 2})
+	c.Assert(s.Metrics.Iterations, Equals, uint64(2))
+	c.Assert(s.Metrics.Successes, Equals, uint64(2))
 	c.Assert(s.Metrics.Failures, Equals, uint64(0))
 }
 

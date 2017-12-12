@@ -2,6 +2,7 @@ package bucket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/bilus/backpressure/colors"
 	"github.com/bilus/backpressure/pipeline/permit"
@@ -15,6 +16,8 @@ type Bucket struct {
 	WaterLevel    int
 }
 
+var NegWaterLevel = errors.New("Water level below zero")
+
 func New(permitCh chan<- permit.Permit, lowWaterMark int, highWaterMark int) Bucket {
 	if highWaterMark <= lowWaterMark {
 		panic(fmt.Sprintf("HighWaterMark must be higher than lowWaterMark h=%v l=%v", highWaterMark, lowWaterMark))
@@ -26,8 +29,11 @@ func New(permitCh chan<- permit.Permit, lowWaterMark int, highWaterMark int) Buc
 	}
 }
 
-func (b *Bucket) FillUp(ctx context.Context) error {
-	delta := b.HighWaterMark - b.WaterLevel
+func (b *Bucket) FillUp(ctx context.Context, maxAmount int) error {
+	delta := b.RefillNeeded()
+	if delta > maxAmount {
+		delta = maxAmount
+	}
 	if delta <= 0 {
 		return nil
 	}
@@ -35,7 +41,7 @@ func (b *Bucket) FillUp(ctx context.Context) error {
 	log.Printf(colors.Magenta("Sending permit: %v"), newPermit)
 	select {
 	case b.PermitCh <- newPermit:
-		b.WaterLevel = b.HighWaterMark
+		b.WaterLevel += delta
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -43,10 +49,17 @@ func (b *Bucket) FillUp(ctx context.Context) error {
 }
 
 func (b *Bucket) Drain(ctx context.Context, amount int) error {
+	if b.WaterLevel <= 0 {
+		return NegWaterLevel
+	}
 	b.WaterLevel -= amount
+	return nil
+}
+
+func (b *Bucket) RefillNeeded() int {
 	if b.WaterLevel <= b.LowWaterMark {
-		return b.FillUp(ctx)
+		return b.HighWaterMark - b.WaterLevel
 	} else {
-		return nil
+		return 0
 	}
 }

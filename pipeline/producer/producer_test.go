@@ -47,7 +47,7 @@ func (s *MySuite) TestFullfillsQuotaInPermit(c *C) {
 }
 
 func (s *MySuite) TestClosesTaskChanWhenTerminated(c *C) {
-	defer s.WithTimeout(time.Microsecond * 500)()
+	defer s.WithTimeout(time.Microsecond * 5000)()
 	taskCh, permitCh := producer.Go(s.Ctx, *s.Config, &fixtures.InfiniteProducer{}, s.Metrics, &s.Wg)
 	permitCh <- permit.New(4)
 	s.Wg.Wait()

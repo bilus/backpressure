@@ -10,10 +10,9 @@ go run main.go
 
 ## TODO
 
-- Fix dropping tasks under pressure
 - Structured logging https://github.com/sirupsen/logrus
 - Make PipelineMetrics a map => metrics.PipelineMetrics.
-- Rename metrics.Metrics to metrics.Counters.
+- Fix inconsistent time metrics for dispatcher (are we measuring batcher or are we measuring tasks)
 
 - DD metrics example
 

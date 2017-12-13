@@ -2,6 +2,7 @@ package reporter
 
 import (
 	"context"
+	"fmt"
 	"github.com/bilus/backpressure/metrics"
 	"github.com/olekukonko/tablewriter"
 	"os"
@@ -28,7 +29,11 @@ func ReportMetrics(metrics ...metrics.Metrics) {
 	header := append([]string{"source"}, metrics[0].Labels()...)
 	rows := make([][]string, len(metrics))
 	for i, m := range metrics {
-		rows[i] = append([]string{m.SourceName()}, m.Values()...)
+		values := make([]string, len(m.Values()))
+		for j := 0; j < len(m.Values()); j++ {
+			values[j] = fmt.Sprintf("%.fs", m.Values()[i])
+		}
+		rows[i] = append([]string{m.SourceName()}, values...)
 	}
 
 	printTable(header, rows)

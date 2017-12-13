@@ -14,6 +14,18 @@
   version = "v1.5.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/hasSalil/customdeepequal"
+  packages = ["."]
+  revision = "1dffada2d7af5c7bd30f5ededfb7090be3333a4e"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hasSalil/go-check-utils"
+  packages = ["deepequals"]
+  revision = "113e6d85a56901bd9f95afe4e6f1efe02d0dcdca"
+
+[[projects]]
   name = "github.com/mattn/go-colorable"
   packages = ["."]
   revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
@@ -58,6 +70,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e1bb4182d645d067da4f4bbe353190a3dd2286a421fb8549a1528ba430825ff3"
+  inputs-digest = "6e37412e61d7358adaa7ee8aa665bf903b0ec2a239bbf1b2d223246f2c2060ae"
   solver-name = "gps-cdcl"
   solver-version = 1

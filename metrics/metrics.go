@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"fmt"
 	"github.com/VividCortex/ewma"
 	"sync"
 	"sync/atomic"
@@ -16,8 +15,17 @@ type Metrics interface {
 	EndWithFailure(delta uint64)
 
 	Labels() []string
-	Values() []string
+	Values() []float64
 }
+
+type Span interface {
+	Continue(delta uint64)
+	Success(delta uint64)
+	Failure(delta uint64)
+	Close(err *error)
+}
+
+// TODO: Extract to metrics/basic
 
 type BasicMetrics struct {
 	sourceName string
@@ -58,22 +66,15 @@ func (metric *BasicMetrics) Labels() []string {
 	return []string{"iterations", "successes", "failures", "avgt"}
 }
 
-func (metric *BasicMetrics) Values() []string {
+func (metric *BasicMetrics) Values() []float64 {
 	metric.mtx.Lock()
 	defer metric.mtx.Unlock()
-	return []string{
-		fmt.Sprintf("%v", metric.Iterations),
-		fmt.Sprintf("%v", metric.Successes),
-		fmt.Sprintf("%v", metric.Failures),
-		fmt.Sprintf("%.2fs", metric.AvgTime.Value()),
+	return []float64{
+		float64(metric.Iterations),
+		float64(metric.Successes),
+		float64(metric.Failures),
+		metric.AvgTime.Value(),
 	}
-}
-
-type Span interface {
-	Continue(delta uint64)
-	Success(delta uint64)
-	Failure(delta uint64)
-	Close(err *error)
 }
 
 type BasicSpan struct {
@@ -91,31 +92,24 @@ func (span *BasicSpan) Success(delta uint64) {
 	if delta == 0 {
 		return
 	}
-	bm := span.metrics.(*BasicMetrics)
-	bm.mtx.Lock()
-	defer bm.mtx.Unlock()
+	atomic.AddUint64(&span.delta, ^uint64(delta-1)) // decrement by delta
 	span.metrics.EndWithSuccess(delta)
-	t := time.Since(span.start).Seconds() / float64(delta)
-	for i := uint64(0); i < delta; i++ {
-		bm.AvgTime.Add(t)
-	}
 }
 
 func (span *BasicSpan) Failure(delta uint64) {
 	if delta == 0 {
 		return
 	}
-	bm := span.metrics.(*BasicMetrics)
-	bm.mtx.Lock()
-	defer bm.mtx.Unlock()
 	span.metrics.EndWithFailure(delta)
-	t := time.Since(span.start).Seconds() / float64(delta)
-	for i := uint64(0); i < delta; i++ {
-		bm.AvgTime.Add(t)
-	}
+	atomic.AddUint64(&span.delta, ^uint64(delta-1)) // decrement by delta
 }
 
 func (span *BasicSpan) Close(err *error) {
+	bm := span.metrics.(*BasicMetrics)
+	bm.mtx.Lock()
+	defer bm.mtx.Unlock()
+	t := time.Since(span.start).Seconds()
+	bm.AvgTime.Add(t)
 	if *err != nil {
 		span.Failure(span.delta)
 	} else {

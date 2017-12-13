@@ -111,12 +111,8 @@ func bufferTask(ctx context.Context, task task.Task, buffer *buffer.Buffer, curr
 }
 
 func flushBuffer(ctx context.Context, buffer *buffer.Buffer, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) metrics.Span {
-	batchLen, err := buffer.Flush(ctx, batchCh)
-	if err != nil {
-		currentSpan.Failure(uint64(batchLen))
-	} else {
-		currentSpan.Success(uint64(batchLen))
-	}
+	_, err := buffer.Flush(ctx, batchCh)
+	currentSpan.Close(&err)
 	newSpan := metrics.Begin(0)
 	return newSpan
 }

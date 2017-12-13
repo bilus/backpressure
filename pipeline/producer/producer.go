@@ -104,13 +104,12 @@ func produceTask(ctx context.Context, taskProducer task.Producer, taskCh chan<- 
 }
 
 func queueTask(ctx context.Context, taskCh chan<- task.Task, task task.Task, gracePeriod time.Duration) error {
-	log.Printf(colors.Blue("=> Sending %v"), task)
 	// TODO: Unsure if this elaborate timeout is necessary; the pipeline will be terminated after the grace period anyway.
 	select {
 	case taskCh <- task:
 		return nil
 	case <-ctx.Done():
-		log.Printf(colors.Blue("=> Sending %v (last orders, please)"), task)
+		log.Println(colors.Blue("Last orders, please!"))
 		select {
 		// Last desperate attempt.
 		case taskCh <- task:

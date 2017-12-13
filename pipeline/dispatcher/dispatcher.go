@@ -63,12 +63,12 @@ func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskP
 		ticker := time.NewTicker(tick)
 		defer ticker.Stop()
 		currentSpan := metrics.Begin(0)
-		defer drainAndClose(ctx, buffer, taskCh, batchCh, currentSpan, metrics)
+		defer drainAndClose(ctx, buffer, taskCh, batchCh, &currentSpan, metrics)
 		for {
 			select {
 			case task, ok := <-taskCh:
 				if ok {
-					if err := bufferTask(ctx ,task, buffer, currentSpan); err != nil {
+					if err := bufferTask(ctx, task, buffer, currentSpan); err != nil {
 						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 						return
 					}
@@ -118,20 +118,20 @@ func bufferTask(ctx context.Context, task task.Task, buffer *buffer.Buffer, curr
 	return nil
 }
 
-func flushBuffer(ctx context.Context, buffer *buffer.Buffer, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) metrics.Span {
+func flushBuffer(ctx context.Context, buffer *buffer.Buffer, batchCh chan<- batch.Batch, currentSpan metrics.Span, mtrcs metrics.Metrics) metrics.Span {
 	_, err := buffer.Flush(ctx, batchCh)
 	currentSpan.Close(&err)
-	newSpan := metrics.Begin(0)
+	newSpan := mtrcs.Begin(0)
 	return newSpan
 }
 
-func drainAndClose(ctx context.Context, buffer *buffer.Buffer, taskCh <-chan task.Task, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) {
+func drainAndClose(ctx context.Context, buffer *buffer.Buffer, taskCh <-chan task.Task, batchCh chan<- batch.Batch, currentSpan* metrics.Span, metrics metrics.Metrics) {
 	// We cannot send permit at this point!
 	log.Println("Draining task chan")
 	for task := range taskCh {
-		bufferTask(ctx, task, buffer, currentSpan)
+		bufferTask(ctx, task, buffer, *currentSpan)
 	}
 	// Ignore permits, just try to push it through.
-	flushBuffer(ctx, buffer, batchCh, currentSpan, metrics)
+	flushBuffer(ctx, buffer, batchCh, *currentSpan, metrics)
 	close(batchCh)
 }

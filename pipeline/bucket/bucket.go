@@ -38,7 +38,7 @@ func (b *Bucket) FillUp(ctx context.Context, maxAmount int) error {
 		return nil
 	}
 	newPermit := permit.New(delta)
-	log.Printf(colors.Magenta("Sending permit: %v"), newPermit)
+	log.Printf(colors.Magenta("Sending permit: %v (hwm=%v wl=%v lwm=%v)"), newPermit, b.HighWaterMark, b.WaterLevel, b.LowWaterMark)
 	select {
 	case b.PermitCh <- newPermit:
 		b.WaterLevel += delta

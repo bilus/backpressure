@@ -25,13 +25,13 @@ func Run(ctx context.Context, tick time.Duration, wg *sync.WaitGroup, metrics ..
 	}()
 }
 
-func ReportMetrics(metrics ...metrics.Metrics) {
-	header := append([]string{"source"}, metrics[0].Labels()...)
-	rows := make([][]string, len(metrics))
-	for i, m := range metrics {
+func ReportMetrics(pipelineMetrics ...metrics.Metrics) {
+	header := append([]string{"source"}, pipelineMetrics[0].Labels()...)
+	rows := make([][]string, len(pipelineMetrics))
+	for i, m := range pipelineMetrics {
 		values := make([]string, len(m.Values()))
 		for j := 0; j < len(m.Values()); j++ {
-			values[j] = fmt.Sprintf("%.f", m.Values()[i])
+			values[j] = fmt.Sprintf("%.f", m.Values()[j])
 		}
 		rows[i] = append([]string{m.SourceName()}, values...)
 	}

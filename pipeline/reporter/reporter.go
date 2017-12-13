@@ -31,7 +31,7 @@ func ReportMetrics(metrics ...metrics.Metrics) {
 	for i, m := range metrics {
 		values := make([]string, len(m.Values()))
 		for j := 0; j < len(m.Values()); j++ {
-			values[j] = fmt.Sprintf("%.fs", m.Values()[i])
+			values[j] = fmt.Sprintf("%.f", m.Values()[i])
 		}
 		rows[i] = append([]string{m.SourceName()}, values...)
 	}

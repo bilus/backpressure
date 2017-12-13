@@ -82,11 +82,14 @@ func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
 }
 
 func (s *MySuite) TestConsumerFailure(c *C) {
-	defer s.WithTimeout(time.Microsecond * 300)()
+	// TODO: Rewrite all tests so they don't rely on the timeout based on a code below.
+	cancel := s.WithTimeout(time.Microsecond * 300000)
+	defer cancel()
 	consumer.Go(s.Ctx, *s.Config, &fixtures.FailingConsumer{errors.New("Ooops!")}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{fixtures.SomeTask{1}, fixtures.SomeTask{2}}
 	close(s.BatchCh)
+	cancel()
 	s.Wg.Wait()
 	c.Assert(s.Metrics.Iterations, Equals, uint64(2))
 	c.Assert(s.Metrics.Successes, Equals, uint64(0))
@@ -94,7 +97,7 @@ func (s *MySuite) TestConsumerFailure(c *C) {
 }
 
 func (s *MySuite) TestConsumerTerminatesWhileProducing(c *C) {
-	defer s.WithTimeout(time.Microsecond * 300)()
+	defer s.WithTimeout(time.Microsecond * 300000)()
 	consumer.Go(s.Ctx, *s.Config, &fixtures.TerminatingConsumer{s.Cancel}, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
 	<-s.PermitCh
 	s.BatchCh <- batch.Batch{fixtures.SomeTask{1}, fixtures.SomeTask{2}}

@@ -72,20 +72,12 @@ func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskP
 						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 						return
 					}
-					if err := buffer.FillUp(ctx); err != nil {
-						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
-						return
-					}
 				}
 			case <-ticker.C:
 				if buffer.Size() > 0 {
 					select {
 					case <-permitCh:
 						currentSpan = flushBuffer(ctx, buffer, batchCh, currentSpan, metrics)
-						if err := buffer.FillUp(ctx); err != nil {
-							log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
-							return
-						}
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
 						return
@@ -97,6 +89,10 @@ func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskP
 				return
 			}
 
+			if err := buffer.FillUp(ctx); err != nil {
+				log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
+				return
+			}
 		}
 	}()
 

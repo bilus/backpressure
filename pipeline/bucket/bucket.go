@@ -45,6 +45,9 @@ func (b *Bucket) FillUp(ctx context.Context, maxAmount int) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	default:
+		log.Println("Permit chan full")
+		return nil
 	}
 }
 

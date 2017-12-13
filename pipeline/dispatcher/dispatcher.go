@@ -72,12 +72,20 @@ func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskP
 						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 						return
 					}
+					if err := buffer.FillUp(ctx); err != nil {
+						log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
+						return
+					}
 				}
 			case <-ticker.C:
 				if buffer.Size() > 0 {
 					select {
 					case <-permitCh:
 						currentSpan = flushBuffer(ctx, buffer, batchCh, currentSpan, metrics)
+						if err := buffer.FillUp(ctx); err != nil {
+							log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
+							return
+						}
 					case <-ctx.Done():
 						log.Println(colors.Magenta("Exiting dispatcher"))
 						return
@@ -118,6 +126,7 @@ func flushBuffer(ctx context.Context, buffer *buffer.Buffer, batchCh chan<- batc
 }
 
 func drainAndClose(ctx context.Context, buffer *buffer.Buffer, taskCh <-chan task.Task, batchCh chan<- batch.Batch, currentSpan metrics.Span, metrics metrics.Metrics) {
+	// We cannot send permit at this point!
 	log.Println("Draining task chan")
 	for task := range taskCh {
 		bufferTask(ctx, task, buffer, currentSpan)

@@ -50,6 +50,7 @@ func (s *MySuite) TestDrainAboveLowWaterMark(c *C) {
 	s.Buffer.Prefill(s.Ctx)
 	<-s.PermitChan
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{0})
+	s.Buffer.FillUp(s.Ctx)
 	c.Assert(async.FetchPermit(s.PermitChan), IsNil)
 	c.Assert(s.Buffer.Bucket.WaterLevel, Equals, 3)
 	c.Assert(s.Buffer.BatchingPolicy.GetBatch(), DeepEquals, batch.Batch{fixtures.SomeTask{0}})
@@ -59,7 +60,9 @@ func (s *MySuite) TestDrainBelowLowWaterMarkWithBufferPartiallyFilled(c *C) {
 	s.Buffer.Prefill(s.Ctx)
 	<-s.PermitChan
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{0})
+	s.Buffer.FillUp(s.Ctx)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{1})
+	s.Buffer.FillUp(s.Ctx)
 	permit := <-s.PermitChan
 	c.Assert(s.Buffer.Bucket.WaterLevel, Equals, 4)
 	c.Assert(permit.SizeHint, Equals, 2)
@@ -69,10 +72,14 @@ func (s *MySuite) TestDrainBelowLowWaterMarkWithEmptyBuffer(c *C) {
 	s.Buffer.Prefill(s.Ctx)
 	<-s.PermitChan
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{0})
+	s.Buffer.FillUp(s.Ctx)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{1})
+	s.Buffer.FillUp(s.Ctx)
 	batchCh := make(chan batch.Batch, 1)
 	s.Buffer.Flush(s.Ctx, batchCh)
+	s.Buffer.FillUp(s.Ctx)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{0})
+	s.Buffer.FillUp(s.Ctx)
 	permit := <-s.PermitChan
 	c.Assert(s.Buffer.Bucket.WaterLevel, Equals, 3)
 	c.Assert(permit.SizeHint, Equals, 2)
@@ -83,11 +90,15 @@ func (s *MySuite) TestFillToTheBrim(c *C) {
 	permit := <-s.PermitChan
 	c.Assert(permit.SizeHint, Equals, 4)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{0})
+	s.Buffer.FillUp(s.Ctx)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{1})
+	s.Buffer.FillUp(s.Ctx)
 	permit = <-s.PermitChan
 	c.Assert(permit.SizeHint, Equals, 2)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{2})
+	s.Buffer.FillUp(s.Ctx)
 	s.Buffer.BufferTask(s.Ctx, fixtures.SomeTask{3})
+	s.Buffer.FillUp(s.Ctx)
 	// No permit, buffer full.
 	c.Assert(async.FetchPermit(s.PermitChan), IsNil)
 }

@@ -38,7 +38,13 @@ func (b *Buffer) BufferTask(ctx context.Context, task task.Task) error {
 	err := b.BatchingPolicy.AddTask(task)
 	// TODO: What to do when cannot fill up or drain?
 	b.Bucket.Drain(ctx, 1)
-	b.Bucket.FillUp(ctx, b.availablePermits())
+	b.checkInvariants()
+	return err
+}
+
+func (b *Buffer) FillUp(ctx context.Context) error {
+	b.checkInvariants()
+	err := b.Bucket.FillUp(ctx, b.availablePermits())
 	b.checkInvariants()
 	return err
 }
@@ -51,7 +57,6 @@ func (b *Buffer) Flush(ctx context.Context, batchCh chan<- batch.Batch) (int, er
 	}
 	b.BatchingPolicy.Reset()
 	b.checkInvariants()
-	b.Bucket.FillUp(ctx, b.availablePermits())
 	return len(currentBatch), nil
 }
 

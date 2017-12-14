@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/buffer"
+	"github.com/bilus/backpressure/pipeline/ordering"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/test/async"
 	"github.com/bilus/backpressure/test/fixtures"
@@ -29,7 +30,7 @@ func (s *MySuite) SetUpTest(c *C) {
 	s.MaxSize = 6
 	s.Ctx = context.Background()
 	s.PermitChan = make(chan permit.Permit, 1)
-	s.Buffer = buffer.New(s.PermitChan, batch.NewSliding(s.MaxSize))
+	s.Buffer = buffer.New(s.PermitChan, batch.NewSliding(s.MaxSize), ordering.None)
 }
 
 func (s *MySuite) TestEmpty(c *C) {

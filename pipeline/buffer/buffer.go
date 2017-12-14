@@ -5,23 +5,27 @@ import (
 	"fmt"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/bucket"
+	"github.com/bilus/backpressure/pipeline/ordering"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/task"
 )
 
 type Buffer struct {
 	batch.BatchingPolicy
+	ordering.OrderingPolicy
 	*bucket.Bucket
 }
 
-func New(permitCh chan<- permit.Permit, bp batch.BatchingPolicy) *Buffer {
+func New(permitCh chan<- permit.Permit, bp batch.BatchingPolicy, op ordering.OrderingPolicy) *Buffer {
 	// Make sure we have enough space for 1.5 batch size because of the 0.5 low water mark.
 	highWaterMark := int(float64(bp.MaxSize()) / 1.5)
 	lowWaterMark := highWaterMark / 2
 	b := bucket.New(permitCh, lowWaterMark, highWaterMark)
 	return &Buffer{
 		BatchingPolicy: bp,
-		Bucket:         &b}
+		OrderingPolicy: op,
+		Bucket:         &b,
+	}
 }
 
 func (b *Buffer) Prefill(ctx context.Context) error {
@@ -53,6 +57,10 @@ func (b *Buffer) Flush(ctx context.Context, batchCh chan<- batch.Batch) (int, er
 	b.checkInvariants()
 	currentBatch := b.GetBatch()
 	if len(currentBatch) > 0 {
+		if err := b.OrderingPolicy.Sort(currentBatch); err != nil {
+			// TODO: What should we do? It's probably better to just flush with incorrect ordering
+			// than lose a batch.
+		}
 		batchCh <- currentBatch
 	}
 	b.BatchingPolicy.Reset()

@@ -6,6 +6,7 @@ import (
 	"github.com/bilus/backpressure/metrics"
 	"github.com/bilus/backpressure/pipeline/batch"
 	"github.com/bilus/backpressure/pipeline/buffer"
+	"github.com/bilus/backpressure/pipeline/ordering"
 	"github.com/bilus/backpressure/pipeline/permit"
 	"github.com/bilus/backpressure/pipeline/task"
 	"log"
@@ -17,6 +18,7 @@ type Config struct {
 	Tick time.Duration
 	LowWaterMark int
 	BatchingPolicy batch.BatchingPolicy
+	OrderingPolicy ordering.OrderingPolicy
 }
 
 func DefaultConfig() *Config {
@@ -24,6 +26,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Tick: time.Millisecond * 100,
 		BatchingPolicy: batch.NewDropping(maxSize),
+		OrderingPolicy: ordering.None,
 	}
 }
 
@@ -44,18 +47,23 @@ func (c *Config) WithDroppingPolicy(maxSize int) *Config {
 	return c
 }
 
+func (c *Config) WithOrdering(orderingPolicy ordering.OrderingPolicy) *Config {
+	c.OrderingPolicy = orderingPolicy
+	return c
+}
+
 func Go(ctx context.Context, config Config, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit, metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
-	return run(ctx, config.Tick, taskCh, taskPermitCh, config.BatchingPolicy, metrics, wg)
+	return run(ctx, config.Tick, taskCh, taskPermitCh, config.BatchingPolicy, config.OrderingPolicy, metrics, wg)
 }
 
 // As far as metrics are concerned, it tracks avg time between completion of dispatches divided in the number of tasks in a batch.
-func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit, batchingPolicy batch.BatchingPolicy, metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
+func run(ctx context.Context, tick time.Duration, taskCh <-chan task.Task, taskPermitCh chan<- permit.Permit, batchingPolicy batch.BatchingPolicy, orderingPolicy ordering.OrderingPolicy, metrics metrics.Metrics, wg *sync.WaitGroup) (chan batch.Batch, chan permit.Permit) {
 	batchCh := make(chan batch.Batch)
 	permitCh := make(chan permit.Permit, 1)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buffer := buffer.New(taskPermitCh, batchingPolicy)
+		buffer := buffer.New(taskPermitCh, batchingPolicy, orderingPolicy)
 		if err := buffer.Prefill(ctx); err != nil {
 			log.Printf(colors.Magenta("Exiting dispatcher: %v"), err)
 			return

@@ -64,7 +64,7 @@ func (s *MySuite) TestPermitRequiredBeforeBatchAccepted(c *C) {
 	defer s.WithTimeout(time.Microsecond * 1300)()
 	cc := fixtures.CollectingConsumer{}
 	consumer.Go(s.Ctx, *s.Config, &cc, s.BatchCh, s.PermitCh, s.Metrics, &s.Wg)
-	<-s.PermitCh
+	// Initial permit was sent when consumer started.
 	s.BatchCh <- batch.Batch{fixtures.SomeTask{1}, fixtures.SomeTask{2}}
 	// No permit.
 	select {

@@ -41,7 +41,7 @@ func run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 		}
 		defer drain(ctx, batchConsumer, batchCh, metrics)
 		for {
-			if err := pullBatch(ctx, batchConsumer, batchCh, metrics); err != nil {
+			if err := waitPullBatch(ctx, batchConsumer, batchCh, metrics); err != nil {
 				if ctx.Err() != nil {
 					log.Println(colors.Yellow("Exiting consumer"))
 					return
@@ -59,7 +59,7 @@ func run(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch
 	}()
 }
 
-func pullBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) error {
+func waitPullBatch(ctx context.Context, batchConsumer batch.Consumer, batchCh <-chan batch.Batch, metrics metrics.Metrics) error {
 	select {
 	case batch, ok := <-batchCh:
 		if !ok {
